@@ -1,0 +1,32 @@
+{
+  "kind": "collectionType",
+  "collectionName": "document_accesses",
+  "info": {
+    "singularName": "document-access",
+    "pluralName": "document-accesses",
+    "displayName": "Document Access"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "document": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::document.document",
+      "inversedBy": "documentAccesses",
+      "required": true
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "admin::user",
+      "required": true
+    },
+    "access": {
+      "type": "enumeration",
+      "enum": ["view", "edit", "none"],
+      "required": true
+    }
+  }
+}

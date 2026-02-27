@@ -1,0 +1,52 @@
+{
+  "kind": "collectionType",
+  "collectionName": "business_units",
+  "info": {
+    "singularName": "business-unit",
+    "pluralName": "business-units",
+    "displayName": "Business Unit"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "mainField": "name"
+    }
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "folders": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::folder.folder",
+      "mappedBy": "businessUnit"
+    },
+    "templates": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::template.template",
+      "mappedBy": "businessUnit"
+    },
+    "documents": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::document.document",
+      "mappedBy": "ownerBu"
+    },
+    "userBuRoles": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::user-bu-role.user-bu-role",
+      "mappedBy": "businessUnit"
+    }
+  }
+}

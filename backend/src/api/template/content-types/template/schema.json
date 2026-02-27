@@ -1,0 +1,31 @@
+{
+  "kind": "collectionType",
+  "collectionName": "templates",
+  "info": {
+    "singularName": "template",
+    "pluralName": "templates",
+    "displayName": "Template"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "businessUnit": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::business-unit.business-unit"
+    },
+    "folder": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::folder.folder"
+    },
+    "structure": {
+      "type": "json"
+    }
+  }
+}

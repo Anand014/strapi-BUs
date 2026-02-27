@@ -1,0 +1,45 @@
+{
+  "kind": "collectionType",
+  "collectionName": "documents",
+  "info": {
+    "singularName": "document",
+    "pluralName": "documents",
+    "displayName": "Document"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "content": {
+      "type": "text"
+    },
+    "ownerBu": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::business-unit.business-unit",
+      "inversedBy": "documents",
+      "required": true
+    },
+    "template": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::template.template"
+    },
+    "documentShares": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::document-share.document-share",
+      "mappedBy": "document"
+    },
+    "documentAccesses": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::document-access.document-access",
+      "mappedBy": "document"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "attributes": {
+    "businessUnits": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::business-unit.business-unit",
+      "description": "Business units this user belongs to (for list/search scope)"
+    },
+    "isSuperadmin": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, user has full access to all documents across all BUs"
+    },
+    "isAuthor": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, user can create documents for specific or shared BUs"
+    }
+  }
+}

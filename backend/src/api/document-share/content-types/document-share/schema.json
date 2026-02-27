@@ -1,0 +1,47 @@
+{
+  "kind": "collectionType",
+  "collectionName": "document_shares",
+  "info": {
+    "singularName": "document-share",
+    "pluralName": "document-shares",
+    "displayName": "Document Share"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "document": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::document.document",
+      "inversedBy": "documentShares",
+      "required": true
+    },
+    "targetType": {
+      "type": "enumeration",
+      "enum": [
+        "bu",
+        "user"
+      ],
+      "required": true
+    },
+    "targetBu": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::business-unit.business-unit"
+    },
+    "targetUser": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "admin::user"
+    },
+    "access": {
+      "type": "enumeration",
+      "enum": [
+        "consume",
+        "crud"
+      ],
+      "required": true
+    }
+  }
+}

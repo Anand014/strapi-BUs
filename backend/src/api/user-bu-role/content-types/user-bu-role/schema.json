@@ -1,0 +1,32 @@
+{
+  "kind": "collectionType",
+  "collectionName": "user_bu_roles",
+  "info": {
+    "singularName": "user-bu-role",
+    "pluralName": "user-bu-roles",
+    "displayName": "User BU Role"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "admin::user",
+      "required": true
+    },
+    "businessUnit": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::business-unit.business-unit",
+      "inversedBy": "userBuRoles",
+      "required": true
+    },
+    "role": {
+      "type": "enumeration",
+      "enum": ["viewer", "editor", "admin"],
+      "required": true
+    }
+  }
+}

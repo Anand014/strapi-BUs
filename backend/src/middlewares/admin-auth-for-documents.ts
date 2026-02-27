@@ -1,0 +1,62 @@
+import type { Core } from '@strapi/strapi';
+
+interface Config {
+  pathPrefixes?: string[];
+}
+
+/**
+ * For paths under pathPrefixes, authenticate using admin Bearer token and set ctx.state.user.
+ * This allows content-api routes to use admin session (e.g. document API).
+ * Route config should use auth: false so default content-api auth is skipped; this middleware
+ * runs earlier and populates ctx.state.user for the policy.
+ */
+export default (config: Config, _opts: { strapi: Core.Strapi }) => {
+  const pathPrefixes = config?.pathPrefixes ?? ['/api/documents'];
+
+  return async (ctx: any, next: () => Promise<void>) => {
+    const path = ctx.path ?? ctx.request?.path ?? '';
+    const matches = pathPrefixes.some((prefix: string) => path.startsWith(prefix));
+    if (!matches) {
+      return next();
+    }
+
+    const authHeader = ctx.request?.header?.authorization;
+    if (!authHeader || typeof authHeader !== 'string') {
+      return next();
+    }
+    const parts = authHeader.trim().split(/\s+/);
+    if (parts[0].toLowerCase() !== 'bearer' || parts.length < 2) {
+      return next();
+    }
+    const token = parts[1];
+    const strapi = (global as any).strapi as Core.Strapi;
+    if (!strapi?.sessionManager) {
+      return next();
+    }
+    try {
+      const result = (strapi as any).sessionManager('admin').validateAccessToken(token);
+      if (!result?.isValid || !result?.payload) {
+        return next();
+      }
+      const isActive = await (strapi as any).sessionManager('admin').isSessionActive(result.payload.sessionId);
+      if (!isActive) {
+        return next();
+      }
+      const rawUserId = result.payload.userId;
+      const userId = Number(rawUserId);
+      if (!Number.isFinite(userId)) {
+        return next();
+      }
+      const user = await (strapi as any).db.query('admin::user').findOne({
+        where: { id: userId },
+        populate: ['roles', 'businessUnits'],
+      });
+      if (user?.isActive === true) {
+        ctx.state.user = user;
+      }
+    } catch {
+      // ignore
+    }
+    return next();
+  };
+};
