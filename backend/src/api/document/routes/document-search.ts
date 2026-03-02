@@ -10,6 +10,7 @@ export default {
       path: '/search',
       handler: 'document.search',
       config: {
+        auth: false,
         policies: ['global::require-admin-user'],
       },
     },

@@ -26,20 +26,26 @@ async function hasStrapiSuperAdminRole(strapi: Core.Strapi, userRoles: { id: num
   }
 }
 
-/** Load admin user by id with businessUnits, roles, and flags. Derives buIds from User BU Role when businessUnits is empty. */
+const DEBUG_DOCUMENT_ACCESS = process.env.DEBUG_DOCUMENT_ACCESS === '1';
+
+/** Load admin user by id with businessUnits, roles, and flags. Prefers UserBuRole for BU list so API and CM panel agree. */
 async function getAdminUser(strapi: Core.Strapi, userId: number) {
   try {
-    const users = await (strapi as any).db.query('admin::user').findMany({
+    const u = await (strapi as any).db.query('admin::user').findOne({
       where: { id: userId },
       populate: ['businessUnits', 'roles'],
     });
-    const u = Array.isArray(users) ? users[0] : null;
+    if (DEBUG_DOCUMENT_ACCESS) {
+      console.warn('[doc-access] getAdminUser findOne', { userId, found: !!u, businessUnitsLength: (u?.businessUnits || []).length });
+    }
     if (!u) return null;
 
-    let businessUnitIds: number[] = (u.businessUnits || []).map((bu: any) => bu.id).filter((id: number) => id != null);
-    if (businessUnitIds.length === 0) {
-      const userBuRoles = await getUserBuRoles(strapi, userId);
-      businessUnitIds = userBuRoles.map((r) => r.businessUnitId);
+    const userBuRoles = await getUserBuRoles(strapi, userId);
+    const buIdsFromRoles = userBuRoles.map((r) => r.businessUnitId).filter((id): id is number => id != null);
+    const buIdsFromRelation = (u.businessUnits || []).map((bu: any) => bu?.id ?? bu).filter((id: unknown) => id != null && Number.isFinite(Number(id))).map(Number);
+    const businessUnitIds = [...new Set([...buIdsFromRoles, ...buIdsFromRelation])];
+    if (DEBUG_DOCUMENT_ACCESS) {
+      console.warn('[doc-access] getAdminUser BUs', { userId, buIdsFromRoles, buIdsFromRelation, businessUnitIds });
     }
 
     const isStrapiSuperAdmin = await hasStrapiSuperAdminRole(strapi, u.roles || []);
@@ -287,6 +293,9 @@ async function getShareAccessForDocument(
  */
 export async function getAccessibleDocumentIds(strapi: Core.Strapi, userId: number): Promise<number[]> {
   const user = await getAdminUser(strapi, userId);
+  if (DEBUG_DOCUMENT_ACCESS) {
+    console.warn('[doc-access] getAccessibleDocumentIds', { userId, user: user ? { id: user.id, isSuperadmin: user.isSuperadmin, businessUnitIds: user.businessUnitIds } : null });
+  }
   if (!user) return [];
 
   if (user.isSuperadmin) {
@@ -314,6 +323,10 @@ export async function getAccessibleDocumentIds(strapi: Core.Strapi, userId: numb
   const sharedDocIds = await getSharedDocumentIds(strapi, buIds, userId);
   const accessOverrides = await getDocumentAccessOverrides(strapi, userId);
 
+  if (DEBUG_DOCUMENT_ACCESS) {
+    console.warn('[doc-access] non-superadmin', { userId, buIds, sharedDocIds: sharedDocIds.size, accessOverridesCount: accessOverrides.size });
+  }
+
   const viewableIds = new Set<number>();
 
   // Documents owned by user's BUs
@@ -323,6 +336,9 @@ export async function getAccessibleDocumentIds(strapi: Core.Strapi, userId: numb
       status: 'published',
       fields: ['id'],
     } as any);
+    if (DEBUG_DOCUMENT_ACCESS) {
+      console.warn('[doc-access] docs for buId', { buId, count: (docs || []).length, docIds: (docs || []).map((d: any) => d.id) });
+    }
     for (const d of docs || []) {
       if (d.id != null) viewableIds.add(d.id);
     }

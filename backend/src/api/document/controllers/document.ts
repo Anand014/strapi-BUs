@@ -13,10 +13,44 @@ import {
 const docApi = (strapi: Core.Strapi) => (uid: string) =>
   (strapi as any).documents(uid);
 
+/**
+ * Resolve numeric document ids to documentIds (strings) for Strapi 5 Document Service.
+ * The document service list filters by documentId; filtering by id returns no results.
+ */
+async function resolveDocumentIds(
+  strapi: Core.Strapi,
+  numericIds: number[]
+): Promise<string[]> {
+  if (numericIds.length === 0) return [];
+  const api = docApi(strapi)("api::document.document");
+  const result: string[] = [];
+  const idSet = new Set(numericIds);
+  for (const status of ["published", "draft"] as const) {
+    try {
+      const docs = await api.findMany({
+        status,
+        fields: ["id", "documentId"],
+        limit: 1000,
+      } as any);
+      for (const d of docs || []) {
+        if (d.id != null && idSet.has(d.id)) {
+          if (typeof d.documentId === "string") result.push(d.documentId);
+          else result.push(String(d.id));
+        }
+      }
+    } catch {
+      // skip
+    }
+  }
+  return [...new Set(result)];
+}
+
 function getUserId(ctx: Context): number | null {
   const user = (ctx.state as any).user;
-  if (user && typeof user.id === "number") return user.id;
-  return null;
+  if (!user) return null;
+  const id = user.id;
+  const num = typeof id === "number" ? id : Number(id);
+  return Number.isFinite(num) ? num : null;
 }
 
 async function formatDocumentWithMeta(
@@ -107,7 +141,19 @@ export default {
       return;
     }
 
-    const filters: any = { id: { $in: accessibleIds } };
+    const documentIds = await resolveDocumentIds(strapi, accessibleIds);
+    if (documentIds.length === 0) {
+      ctx.body = {
+        data: [],
+        meta: {
+          total: 0,
+          pagination: { page: pageNum, pageSize: size, pageCount: 0 },
+        },
+      };
+      return;
+    }
+
+    const filters: any = { documentId: { $in: documentIds } };
     if (buSlug) filters.ownerBu = { slug: buSlug };
     const statusParam =
       statusFilter === "published"

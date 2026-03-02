@@ -6,7 +6,7 @@ import { factories } from '@strapi/strapi';
 export default factories.createCoreRouter('api::document.document', {
   only: ['find', 'findOne'],
   config: {
-    find: { policies: ['global::require-admin-user'] },
-    findOne: { policies: ['global::require-admin-user'] },
+    find: { auth: false, policies: ['global::require-admin-user'] },
+    findOne: { auth: false, policies: ['global::require-admin-user'] },
   },
 });
