@@ -12,7 +12,7 @@ const config: Core.Config.Middlewares = [
   {
     name: 'global::admin-auth-for-documents',
     config: {
-      pathPrefixes: ['/api/documents'],
+      pathPrefixes: ['/api/documents', '/api/search'],
     },
   },
   'strapi::favicon',

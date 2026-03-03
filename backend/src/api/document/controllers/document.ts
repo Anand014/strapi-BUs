@@ -17,7 +17,7 @@ const docApi = (strapi: Core.Strapi) => (uid: string) =>
  * Resolve numeric document ids to documentIds (strings) for Strapi 5 Document Service.
  * The document service list filters by documentId; filtering by id returns no results.
  */
-async function resolveDocumentIds(
+export async function resolveDocumentIds(
   strapi: Core.Strapi,
   numericIds: number[]
 ): Promise<string[]> {
@@ -45,7 +45,7 @@ async function resolveDocumentIds(
   return [...new Set(result)];
 }
 
-function getUserId(ctx: Context): number | null {
+export function getUserId(ctx: Context): number | null {
   const user = (ctx.state as any).user;
   if (!user) return null;
   const id = user.id;
@@ -54,7 +54,7 @@ function getUserId(ctx: Context): number | null {
 }
 
 /** Minimal shape for unauthenticated (public) document responses. */
-function formatPublicDocument(doc: any) {
+export function formatPublicDocument(doc: any) {
   return {
     id: doc.documentId ?? doc.id,
     title: doc.title,
@@ -66,7 +66,7 @@ function formatPublicDocument(doc: any) {
   };
 }
 
-async function formatDocumentWithMeta(
+export async function formatDocumentWithMeta(
   strapi: Core.Strapi,
   doc: any,
   userId: number,
@@ -117,6 +117,13 @@ const defaultController = factories.createCoreController(
 
 export default {
   ...defaultController,
+
+  /** GET /api/documents/search?q=... - delegates to search controller. */
+  async search(ctx: Context) {
+    const searchController = (await import("../../search/controllers/search")).default;
+    return searchController.search(ctx);
+  },
+
   async find(ctx: Context) {
     const userId = getUserId(ctx);
     const strapi = (global as any).strapi as Core.Strapi;
