@@ -1,0 +1,135 @@
+/**
+ * src/admin/app.jsx
+ *
+ * Strapi v5 Admin panel customisation - SAFE MODE.
+ * If this loads, we see logs in the console.
+ */
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { useFetchClient } from '@strapi/admin/strapi-admin';
+
+console.log('[BU Extension] Script start');
+
+// --- Constants ---
+const SUPER_ADMIN_CODE = 'strapi-super-admin';
+const MOUNT_ID = '__bu-portal-mount__';
+const USER_EDIT_RE = /\/settings\/users\/(\d+)(?:[/?#]|$)/;
+
+// --- Minimal Component ---
+function BuSelector({ userId, initialBuId, isSuperAdmin }) {
+  const { get, put } = useFetchClient();
+  const [options, setOptions] = useState([]);
+  const [selected, setSelected] = useState(initialBuId ? String(initialBuId) : '');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      setLoading(false);
+      return;
+    }
+    console.log('[BU Extension] Loading options for user:', userId);
+    get('/admin/users/bu-options')
+      .then((res) => {
+        const body = res?.data ?? res;
+        const items = body?.data ?? body;
+        setOptions(Array.isArray(items) ? items : []);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('[BU Extension] Load failed:', err);
+        setLoading(false);
+      });
+  }, [get, isSuperAdmin, userId]);
+
+  if (isSuperAdmin) return null;
+
+  return (
+    <div id="bu-portal-content" style={{ padding: '20px', border: '1px solid #ccc', marginTop: '20px', background: '#fff' }}>
+      <strong>Business Unit Selection</strong>
+      <select value={selected} onChange={(e) => setSelected(e.target.value)} style={{ width: '100%', marginTop: '10px' }}>
+        <option value="">-- Select BU --</option>
+        {options.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+      </select>
+    </div>
+  );
+}
+
+// --- Minimal Injector ---
+function BuInjector() {
+  const { get } = useFetchClient();
+  const [renderData, setRenderData] = useState(null);
+  const checkRef = useRef(null);
+
+  useEffect(() => {
+    console.log('[BU Extension] Injector mounted');
+    
+    const checkDom = async () => {
+      const path = window.location.pathname;
+      const match = path.match(USER_EDIT_RE);
+      
+      if (!match) {
+        if (renderData) setRenderData(null);
+        return;
+      }
+
+      const form = document.querySelector('form');
+      if (!form) return;
+
+      // Ensure mount point exists
+      let mount = document.getElementById(MOUNT_ID);
+      if (!mount) {
+        console.log('[BU Extension] Creating mount point');
+        mount = document.createElement('div');
+        mount.id = MOUNT_ID;
+        form.appendChild(mount);
+      }
+
+      const userId = match[1];
+      if (renderData?.userId === userId) return;
+
+      try {
+        const res = await get(`/admin/users/${userId}?populate[bu]=true`);
+        const user = res?.data?.data ?? res?.data ?? res;
+        if (user && user.id) {
+          const roles = Array.isArray(user.roles) ? user.roles : [];
+          setRenderData({
+            mount,
+            userId: user.id,
+            initialBuId: user.bu?.id ?? null,
+            isSuperAdmin: roles.some(r => r.code === SUPER_ADMIN_CODE)
+          });
+        }
+      } catch (e) {}
+    };
+
+    checkRef.current = setInterval(checkDom, 2000);
+    return () => clearInterval(checkRef.current);
+  }, [get, renderData]);
+
+  if (!renderData) return null;
+
+  return createPortal(
+    <BuSelector 
+      userId={renderData.userId} 
+      initialBuId={renderData.initialBuId} 
+      isSuperAdmin={renderData.isSuperAdmin} 
+    />,
+    renderData.mount
+  );
+}
+
+const config = { locales: [] };
+
+const register = (app) => {
+  console.log('[BU Extension] Registering...');
+  app.injectComponent('admin', 'app', {
+    name: 'BuInjector',
+    Component: BuInjector,
+  });
+};
+
+const bootstrap = () => {
+  console.log('[BU Extension] Bootstrapped');
+};
+
+export default { config, register, bootstrap };

@@ -1,0 +1,18 @@
+{
+  "kind": "collectionType",
+  "collectionName": "bus",
+  "info": {
+    "singularName": "bu",
+    "pluralName": "bus",
+    "displayName": "BU"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string"
+    }
+  }
+}
