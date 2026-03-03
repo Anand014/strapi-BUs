@@ -288,6 +288,27 @@ async function getShareAccessForDocument(
 }
 
 /**
+ * Returns the set of document IDs (database id) for published documents with isPublic true.
+ * Used for unauthenticated controller and for merging into logged-in viewable set.
+ */
+export async function getPublicPublishedDocumentIds(strapi: Core.Strapi): Promise<number[]> {
+  try {
+    const docs = await docApi(strapi)('api::document.document').findMany({
+      status: 'published',
+      filters: { isPublic: true },
+      fields: ['id'],
+    } as any);
+    const ids: number[] = [];
+    for (const d of docs || []) {
+      if (d.id != null) ids.push(d.id);
+    }
+    return ids;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Returns the set of document IDs (database id) the user can view.
  * Used for list and search filtering.
  */
@@ -371,6 +392,10 @@ export async function getAccessibleDocumentIds(strapi: Core.Strapi, userId: numb
     if (access === 'none') viewableIds.delete(docId);
   }
 
+  // Published public documents are viewable by everyone
+  const publicIds = await getPublicPublishedDocumentIds(strapi);
+  for (const id of publicIds) viewableIds.add(id);
+
   return Array.from(viewableIds);
 }
 
@@ -420,6 +445,11 @@ export async function getPermissions(
     return out;
   }
   if (!doc) return out;
+
+  // Published public documents are viewable by everyone
+  if (doc.isPublic === true && doc.publishedAt) {
+    out.canView = true;
+  }
 
   const ownerBuId = doc.ownerBu?.id ?? doc.ownerBu;
   const role = ownerBuId != null ? roleByBu.get(ownerBuId) : null;

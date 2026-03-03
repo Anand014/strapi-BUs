@@ -14,8 +14,7 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "api::document.document",
-      "inversedBy": "documentShares",
-      "required": true
+      "inversedBy": "documentShares"
     },
     "targetType": {
       "type": "enumeration",

@@ -1,5 +1,5 @@
 /**
- * Policy: require ctx.state.user (admin user). Use for document list/get-one/search.
+ * Policy: require ctx.state.user (admin user). Use for document list/get-one.
  * Throws UnauthorizedError so the framework can respond with 401 (policy context
  * does not receive delegated Koa response helpers like ctx.unauthorized).
  */
