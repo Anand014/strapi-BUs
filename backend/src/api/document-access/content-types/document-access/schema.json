@@ -14,8 +14,7 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "api::document.document",
-      "inversedBy": "documentAccesses",
-      "required": true
+      "inversedBy": "documentAccesses"
     },
     "user": {
       "type": "relation",
@@ -25,7 +24,11 @@
     },
     "access": {
       "type": "enumeration",
-      "enum": ["view", "edit", "none"],
+      "enum": [
+        "view",
+        "edit",
+        "none"
+      ],
       "required": true
     }
   }

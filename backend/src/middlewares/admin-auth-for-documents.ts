@@ -38,11 +38,14 @@ export default (config: Config, _opts: { strapi: Core.Strapi }) => {
       if (!result?.isValid || !result?.payload) {
         return next();
       }
-      const isActive = await (strapi as any).sessionManager('admin').isSessionActive(result.payload.sessionId);
-      if (!isActive) {
-        return next();
+      const sessionId = result.payload.sessionId ?? result.payload.session_id;
+      if (sessionId) {
+        const isActive = await (strapi as any).sessionManager('admin').isSessionActive(sessionId);
+        if (!isActive) {
+          return next();
+        }
       }
-      const rawUserId = result.payload.userId;
+      const rawUserId = result.payload.userId ?? result.payload.id ?? result.payload.sub;
       const userId = Number(rawUserId);
       if (!Number.isFinite(userId)) {
         return next();

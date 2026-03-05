@@ -9,6 +9,7 @@
   "options": {
     "draftAndPublish": true
   },
+  "pluginOptions": {},
   "attributes": {
     "title": {
       "type": "string",
@@ -21,8 +22,7 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "api::business-unit.business-unit",
-      "inversedBy": "documents",
-      "required": true
+      "inversedBy": "documents"
     },
     "template": {
       "type": "relation",
@@ -40,6 +40,10 @@
       "relation": "oneToMany",
       "target": "api::document-access.document-access",
       "mappedBy": "document"
+    },
+    "isPublic": {
+      "type": "boolean",
+      "default": false
     }
   }
 }
