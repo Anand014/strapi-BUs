@@ -1,0 +1,32 @@
+{
+  "kind": "collectionType",
+  "collectionName": "swaggers",
+  "info": {
+    "singularName": "swagger",
+    "pluralName": "swaggers",
+    "displayName": "Swagger"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "swagger_json": {
+      "type": "json"
+    },
+    "swagger_version": {
+      "type": "string"
+    },
+    "content_item": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::content-item.content-item",
+      "inversedBy": "swaggers"
+    }
+  }
+}
