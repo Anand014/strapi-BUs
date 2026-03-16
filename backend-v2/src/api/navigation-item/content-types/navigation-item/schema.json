@@ -1,0 +1,62 @@
+{
+  "kind": "collectionType",
+  "collectionName": "navigation_items",
+  "info": {
+    "singularName": "navigation-item",
+    "pluralName": "navigation-items",
+    "displayName": "Navigation Item",
+    "description": "Sidebar or top navigation menus"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "title"
+    },
+    "order": {
+      "type": "integer",
+      "default": 0
+    },
+    "parent": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::navigation-item.navigation-item",
+      "inversedBy": "children"
+    },
+    "children": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::navigation-item.navigation-item",
+      "mappedBy": "parent"
+    },
+    "content_item": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::content-item.content-item",
+      "inversedBy": "navigation_items"
+    },
+    "external_url": {
+      "type": "string"
+    },
+    "product": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product.product",
+      "inversedBy": "navigation_items",
+      "required": true
+    },
+    "tenant": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::tenant.tenant",
+      "inversedBy": "navigation_items",
+      "required": true
+    }
+  }
+}

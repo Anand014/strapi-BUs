@@ -33,5 +33,5 @@ The **backend** folder contains a Strapi 5 app that implements the CM flow: cont
 
 ## Testing
 
-To verify all edge cases and flows (list, get-one, search, roles, shared access, DocumentAccess none, superadmin, etc.), use **[EDGE-CASES-AND-FLOWS.md](EDGE-CASES-AND-FLOWS.md)**. It lists each edge case and step-by-step how to check every flow with the Strapi APIs.
+To verify all edge cases and flows (list, get-one, search, roles, shared access, DocumentAccess none, superadmin, etc.), use **[EDGE-CASES-AND-FLOWS.md](EDGE-CASES-AND-FLOWS.md)**. It lists each edge case and step-by-step how to check every flow with the Strapi APIs. For a single reference that maps each edge case to **how the code handles it** and **how to test it**, see **[EDGE-CASES-HANDLING-AND-TESTING.md](EDGE-CASES-HANDLING-AND-TESTING.md)**.
 # strapi-BUs
