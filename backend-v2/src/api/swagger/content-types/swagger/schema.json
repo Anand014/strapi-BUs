@@ -19,10 +19,14 @@
     "swagger_json": {
       "type": "json"
     },
-    "content_items": {
+    "swagger_version": {
+      "type": "string"
+    },
+    "content_item": {
       "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::content-item.content-item"
+      "relation": "manyToOne",
+      "target": "api::content-item.content-item",
+      "inversedBy": "swaggers"
     }
   }
 }

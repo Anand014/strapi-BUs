@@ -45,13 +45,11 @@
     "source_path": {
       "type": "string"
     },
-    "swagger": {
+    "swaggers": {
       "type": "relation",
-      "relation": "oneToOne",
-      "target": "api::swagger.swagger"
-    },
-    "swagger_version": {
-      "type": "string"
+      "relation": "oneToMany",
+      "target": "api::swagger.swagger",
+      "mappedBy": "content_item"
     },
     "operations": {
       "type": "json"
