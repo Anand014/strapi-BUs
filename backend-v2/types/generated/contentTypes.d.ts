@@ -530,7 +530,7 @@ export interface ApiContentItemContentItem extends Struct.CollectionTypeSchema {
     slug: Schema.Attribute.UID<'title'> & Schema.Attribute.Required;
     source_path: Schema.Attribute.String;
     summary: Schema.Attribute.Text;
-    swagger_spec: Schema.Attribute.JSON;
+    swagger: Schema.Attribute.Relation<'oneToOne', 'api::swagger.swagger'>;
     swagger_version: Schema.Attribute.String;
     tags: Schema.Attribute.Relation<'manyToMany', 'api::tag.tag'>;
     tenant: Schema.Attribute.Relation<'manyToOne', 'api::tenant.tenant'>;
@@ -633,6 +633,41 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     slug: Schema.Attribute.UID<'name'> & Schema.Attribute.Required;
     tenant: Schema.Attribute.Relation<'manyToOne', 'api::tenant.tenant'> &
       Schema.Attribute.Required;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiSwaggerSwagger extends Struct.CollectionTypeSchema {
+  collectionName: 'swaggers';
+  info: {
+    displayName: 'Swagger';
+    pluralName: 'swaggers';
+    singularName: 'swagger';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    content_items: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::content-item.content-item'
+    >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::swagger.swagger'
+    > &
+      Schema.Attribute.Private;
+    name: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    publishedAt: Schema.Attribute.DateTime;
+    swagger_json: Schema.Attribute.JSON;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1269,6 +1304,7 @@ declare module '@strapi/strapi' {
       'api::content-item.content-item': ApiContentItemContentItem;
       'api::navigation-item.navigation-item': ApiNavigationItemNavigationItem;
       'api::product.product': ApiProductProduct;
+      'api::swagger.swagger': ApiSwaggerSwagger;
       'api::tag.tag': ApiTagTag;
       'api::tenant.tenant': ApiTenantTenant;
       'api::version.version': ApiVersionVersion;

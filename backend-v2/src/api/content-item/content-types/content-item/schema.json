@@ -30,8 +30,7 @@
     },
     "plantuml_source": {
       "type": "text",
-      "required": false,
-      "description": "Optional PlantUML source code associated with this content item"
+      "required": false
     },
     "content_type": {
       "type": "enumeration",
@@ -44,24 +43,21 @@
       ]
     },
     "source_path": {
-      "type": "string",
-      "description": "Relative path to source file in dev-portal-2.0-content (e.g. UseCases/Browse/Content/RatePlanCatalog.md)"
+      "type": "string"
     },
-    "swagger_spec": {
-      "type": "json",
-      "description": "Full OpenAPI/Swagger document for this use case"
+    "swagger": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::swagger.swagger"
     },
     "swagger_version": {
-      "type": "string",
-      "description": "OpenAPI version (e.g. 3.0.1)"
+      "type": "string"
     },
     "operations": {
-      "type": "json",
-      "description": "Endpoint/method pairs from sitemap, e.g. [{ \"path\": \"/products\", \"method\": \"post\" }]"
+      "type": "json"
     },
     "example_id": {
-      "type": "string",
-      "description": "Legacy sitemap exampleID (e.g. ratePlanCatalog, useYourOwnDevice) for Try-it linking"
+      "type": "string"
     },
     "media": {
       "type": "media",
@@ -69,8 +65,7 @@
       "allowedTypes": [
         "images",
         "files"
-      ],
-      "description": "Diagrams, screenshots, and related files uploaded directly from the Content Item form"
+      ]
     },
     "visibility": {
       "type": "enumeration",
