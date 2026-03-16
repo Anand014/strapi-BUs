@@ -1,0 +1,39 @@
+############################
+# Dependencies & env
+############################
+node_modules
+.env
+
+############################
+# Strapi
+############################
+.tmp
+dist
+build
+.strapi
+.strapi-updater.json
+.strapi-cloud.json
+license.txt
+exports
+
+############################
+# Logs & DB
+############################
+*.log
+*.sql
+*.sqlite
+*.sqlite3
+
+############################
+# OS & IDE
+############################
+.DS_Store
+.idea
+*.tsbuildinfo
+.eslintcache
+
+############################
+# Uploads (keep structure)
+############################
+public/uploads/*
+!public/uploads/.gitkeep
