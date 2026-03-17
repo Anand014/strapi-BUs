@@ -15,8 +15,12 @@ export interface Permissions {
 const docApi = (strapi: Core.Strapi) => (uid: string) => (strapi as any).documents(uid);
 
 /** Check if user has Strapi's built-in Super Admin role (so we treat them as superadmin even without custom isSuperadmin flag). */
-async function hasStrapiSuperAdminRole(strapi: Core.Strapi, userRoles: { id: number }[]): Promise<boolean> {
+async function hasStrapiSuperAdminRole(strapi: Core.Strapi, userRoles: { id: number; code?: string }[]): Promise<boolean> {
   try {
+    // 1. Check for the standard Super Admin code directly
+    if (userRoles.some(r => r.code === 'strapi-super-admin')) return true;
+
+    // 2. Fallback to Strapi's internal service check
     const roleService = (strapi as any).service?.('admin::role');
     const superAdminRole = roleService && (await roleService.getSuperAdmin?.());
     if (!superAdminRole?.id || !Array.isArray(userRoles)) return false;
@@ -391,14 +395,16 @@ export async function getPermissions(
     const list = await docApi(strapi)('api::document.document').findMany({
       filters: { id: documentId },
       status: 'published',
+      populate: ['ownerBu'],
     } as any);
-    doc = Array.isArray(list) ? list[0] : null;
+    doc = Array.isArray(list) ? list[0] : (list?.data?.[0] || null);
     if (!doc) {
       const draftList = await docApi(strapi)('api::document.document').findMany({
         filters: { id: documentId },
         status: 'draft',
+        populate: ['ownerBu'],
       } as any);
-      doc = Array.isArray(draftList) ? draftList[0] : null;
+      doc = Array.isArray(draftList) ? draftList[0] : (draftList?.data?.[0] || null);
     }
   } catch {
     return out;
