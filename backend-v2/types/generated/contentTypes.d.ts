@@ -646,7 +646,7 @@ export interface ApiSwaggerSwagger extends Struct.CollectionTypeSchema {
     singularName: 'swagger';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
     content_item: Schema.Attribute.Relation<
