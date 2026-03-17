@@ -530,7 +530,7 @@ export interface ApiContentItemContentItem extends Struct.CollectionTypeSchema {
     slug: Schema.Attribute.UID<'title'> & Schema.Attribute.Required;
     source_path: Schema.Attribute.String;
     summary: Schema.Attribute.Text;
-    swaggers: Schema.Attribute.Relation<'oneToMany', 'api::swagger.swagger'>;
+    swagger: Schema.Attribute.Relation<'manyToOne', 'api::swagger.swagger'>;
     tags: Schema.Attribute.Relation<'manyToMany', 'api::tag.tag'>;
     tenant: Schema.Attribute.Relation<'manyToOne', 'api::tenant.tenant'>;
     title: Schema.Attribute.String & Schema.Attribute.Required;
@@ -649,8 +649,8 @@ export interface ApiSwaggerSwagger extends Struct.CollectionTypeSchema {
     draftAndPublish: true;
   };
   attributes: {
-    content_item: Schema.Attribute.Relation<
-      'manyToOne',
+    content_items: Schema.Attribute.Relation<
+      'oneToMany',
       'api::content-item.content-item'
     >;
     createdAt: Schema.Attribute.DateTime;
