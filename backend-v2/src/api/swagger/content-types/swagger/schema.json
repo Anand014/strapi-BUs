@@ -22,11 +22,11 @@
     "swagger_version": {
       "type": "string"
     },
-    "content_item": {
+    "content_items": {
       "type": "relation",
-      "relation": "manyToOne",
+      "relation": "oneToMany",
       "target": "api::content-item.content-item",
-      "inversedBy": "swaggers"
+      "mappedBy": "swagger"
     }
   }
 }
