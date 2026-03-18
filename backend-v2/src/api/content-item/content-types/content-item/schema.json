@@ -121,6 +121,12 @@
       "relation": "oneToMany",
       "target": "api::navigation-item.navigation-item",
       "mappedBy": "content_item"
+    },
+    "document_shares": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::document-share.document-share",
+      "mappedBy": "content_item"
     }
   }
 }
