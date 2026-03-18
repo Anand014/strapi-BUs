@@ -509,6 +509,10 @@ export interface ApiContentItemContentItem extends Struct.CollectionTypeSchema {
       'manyToOne',
       'api::version.version'
     >;
+    document_shares: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::document-share.document-share'
+    >;
     example_id: Schema.Attribute.String;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -541,6 +545,39 @@ export interface ApiContentItemContentItem extends Struct.CollectionTypeSchema {
     visibility: Schema.Attribute.Enumeration<['public', 'private']> &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'public'>;
+  };
+}
+
+export interface ApiDocumentShareDocumentShare
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'document_shares';
+  info: {
+    displayName: 'Document Share';
+    pluralName: 'document-shares';
+    singularName: 'document-share';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    content_item: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::content-item.content-item'
+    >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::document-share.document-share'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    tenant: Schema.Attribute.Relation<'manyToOne', 'api::tenant.tenant'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
   };
 }
 
@@ -1302,6 +1339,7 @@ declare module '@strapi/strapi' {
       'admin::user': AdminUser;
       'api::content-category.content-category': ApiContentCategoryContentCategory;
       'api::content-item.content-item': ApiContentItemContentItem;
+      'api::document-share.document-share': ApiDocumentShareDocumentShare;
       'api::navigation-item.navigation-item': ApiNavigationItemNavigationItem;
       'api::product.product': ApiProductProduct;
       'api::swagger.swagger': ApiSwaggerSwagger;
