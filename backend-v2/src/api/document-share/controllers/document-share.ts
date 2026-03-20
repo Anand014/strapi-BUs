@@ -237,20 +237,9 @@ export default factories.createCoreController(
         return;
       }
 
-      if (!access.isSuperAdmin) {
-        if (!access.tenantId) {
-          ctx.forbidden('Tenant assignment required');
-          return;
-        }
-        const requestedTenantId = relationValueToId(data?.tenant);
-        if (
-          requestedTenantId != null &&
-          requestedTenantId !== access.tenantId
-        ) {
-          ctx.forbidden('Tenant cannot be changed');
-          return;
-        }
-        data.tenant = access.tenantId;
+      if (!access.isSuperAdmin && !access.tenantId) {
+        ctx.forbidden('Tenant assignment required');
+        return;
       }
 
       if (!access.isSuperAdmin) {

@@ -415,12 +415,14 @@ export default (plugin: {
         }
       }
 
-      const requestedTenantId = relationValueToId(data.tenant);
-      if (requestedTenantId != null && requestedTenantId !== access.tenantId) {
-        ctx.forbidden('Tenant cannot be changed');
-        return;
+      if (model !== MODEL_UIDS.documentShare) {
+        const requestedTenantId = relationValueToId(data.tenant);
+        if (requestedTenantId != null && requestedTenantId !== access.tenantId) {
+          ctx.forbidden('Tenant cannot be changed');
+          return;
+        }
+        data.tenant = access.tenantId;
       }
-      data.tenant = access.tenantId;
     }
 
     ctx.request.body = { ...(ctx.request?.body ?? {}), data };
@@ -509,9 +511,8 @@ export default (plugin: {
     return originalDelete?.(ctx);
   };
 
-  // UI: disable editing the `tenant` relation for all non-superadmins.
-  // This is required because content-manager otherwise renders a tenant dropdown
-  // for any collection type that defines a `tenant` attribute in its schema.
+  // UI: disable editing the `tenant` relation for non-superadmins by default.
+  // Document Share is an explicit exception where admins are allowed to choose tenant on create.
   const contentTypesCtrl = plugin.controllers['content-types'];
   const originalFindContentTypeConfiguration =
     contentTypesCtrl?.findContentTypeConfiguration;
@@ -531,14 +532,18 @@ export default (plugin: {
       const metadatas = ctx.body?.data?.contentType?.metadatas;
       if (!metadatas || typeof metadatas !== 'object') return;
 
+      const uid =
+        ctx.params?.uid ?? ctx.params?.model ?? ctx.request?.query?.uid ?? null;
+      const isDocumentShare = uid === MODEL_UIDS.documentShare;
+
       const tenantMeta = metadatas.tenant;
       if (!tenantMeta) return;
       if (!tenantMeta.edit) tenantMeta.edit = {};
-      tenantMeta.edit.editable = false;
+      tenantMeta.edit.editable = isDocumentShare;
 
       // Prefill tenant for tenant-scoped users so the UI renders the dropdown
       // with the correct selection on create (backend will also enforce).
-      if (access.tenantId != null) {
+      if (!isDocumentShare && access.tenantId != null) {
         // Strapi uses `defaultValue` on field metadata to initialize form state.
         // Keep it duplicated defensively since exact nesting may vary by Strapi version.
         (tenantMeta as any).defaultValue = access.tenantId;
