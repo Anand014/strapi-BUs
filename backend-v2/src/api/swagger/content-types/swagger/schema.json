@@ -22,6 +22,11 @@
     "swagger_version": {
       "type": "string"
     },
+    "tenant": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::tenant.tenant"
+    },
     "content_items": {
       "type": "relation",
       "relation": "oneToMany",
