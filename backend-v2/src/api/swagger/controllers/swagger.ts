@@ -7,6 +7,22 @@ import { factories } from '@strapi/strapi';
 import { resolveTenantAccess } from '../../../services/tenant-access';
 import { resolveAllowedSwaggerIds } from '../../../services/tenant-visible-ids';
 
+async function resolveTenantOwnedSwaggerIds(
+  strapi: any,
+  tenantId: number | null,
+): Promise<number[]> {
+  if (tenantId == null) return [];
+  const rows = await strapi.db
+    .connection('swaggers_tenant_lnk')
+    .distinct('swagger_id as id')
+    .where('tenant_id', tenantId);
+  return Array.isArray(rows)
+    ? rows
+        .map((r: any) => Number(r?.id))
+        .filter((n: number) => Number.isFinite(n))
+    : [];
+}
+
 export default factories.createCoreController('api::swagger.swagger', ({ strapi }) => ({
   async find(ctx: Context) {
     if (!strapi) {
@@ -15,7 +31,9 @@ export default factories.createCoreController('api::swagger.swagger', ({ strapi 
     }
 
     const access = await resolveTenantAccess(strapi, ctx);
-    const allowedIds = await resolveAllowedSwaggerIds(strapi, access.visibleContentItemIds);
+    const linkedIds = await resolveAllowedSwaggerIds(strapi, access.visibleContentItemIds);
+    const tenantOwnedIds = await resolveTenantOwnedSwaggerIds(strapi, access.tenantId);
+    const allowedIds = Array.from(new Set<number>([...linkedIds, ...tenantOwnedIds]));
 
     const pageNum = Math.max(
       1,
@@ -88,7 +106,9 @@ export default factories.createCoreController('api::swagger.swagger', ({ strapi 
     }
 
     const access = await resolveTenantAccess(strapi, ctx);
-    const allowedIds = await resolveAllowedSwaggerIds(strapi, access.visibleContentItemIds);
+    const linkedIds = await resolveAllowedSwaggerIds(strapi, access.visibleContentItemIds);
+    const tenantOwnedIds = await resolveTenantOwnedSwaggerIds(strapi, access.tenantId);
+    const allowedIds = Array.from(new Set<number>([...linkedIds, ...tenantOwnedIds]));
 
     if (!allowedIds.includes(id)) {
       ctx.notFound('Not found');

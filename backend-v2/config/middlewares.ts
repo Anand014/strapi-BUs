@@ -9,6 +9,19 @@ const config: Core.Config.Middlewares = [
   'strapi::query',
   'strapi::body',
   'strapi::session',
+  {
+    name: 'global::admin-auth-for-content-api',
+    config: {
+      pathPrefixes: [
+        '/api/content-categories',
+        '/api/content-items',
+        '/api/navigation-items',
+        '/api/products',
+        '/api/swaggers',
+        '/api/document-shares',
+      ],
+    },
+  },
   'strapi::favicon',
   'strapi::public',
 ];

@@ -3,6 +3,22 @@ import { factories } from '@strapi/strapi';
 import { resolveTenantAccess } from '../../../services/tenant-access';
 import { resolveAllowedCategoryIds } from '../../../services/tenant-visible-ids';
 
+async function resolveTenantOwnedCategoryIds(
+  strapi: any,
+  tenantId: number | null,
+): Promise<number[]> {
+  if (tenantId == null) return [];
+  const rows = await strapi.db
+    .connection('content_categories_tenant_lnk')
+    .distinct('content_category_id as id')
+    .where('tenant_id', tenantId);
+  return Array.isArray(rows)
+    ? rows
+        .map((r: any) => Number(r?.id))
+        .filter((n: number) => Number.isFinite(n))
+    : [];
+}
+
 function relationValueToId(value: unknown): number | null {
   if (value == null) return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -35,7 +51,9 @@ export default factories.createCoreController('api::content-category.content-cat
 
     const access = await resolveTenantAccess(strapi, ctx);
     const visibleIds = access.visibleContentItemIds;
-    const allowedIds = await resolveAllowedCategoryIds(strapi, visibleIds);
+    const linkedIds = await resolveAllowedCategoryIds(strapi, visibleIds);
+    const tenantOwnedIds = await resolveTenantOwnedCategoryIds(strapi, access.tenantId);
+    const allowedIds = Array.from(new Set<number>([...linkedIds, ...tenantOwnedIds]));
 
     const pageNum = Math.max(
       1,
@@ -111,10 +129,12 @@ export default factories.createCoreController('api::content-category.content-cat
     }
 
     const access = await resolveTenantAccess(strapi, ctx);
-    const allowedIds = await resolveAllowedCategoryIds(
+    const linkedIds = await resolveAllowedCategoryIds(
       strapi,
       access.visibleContentItemIds,
     );
+    const tenantOwnedIds = await resolveTenantOwnedCategoryIds(strapi, access.tenantId);
+    const allowedIds = Array.from(new Set<number>([...linkedIds, ...tenantOwnedIds]));
 
     if (!allowedIds.includes(id)) {
       ctx.notFound('Not found');

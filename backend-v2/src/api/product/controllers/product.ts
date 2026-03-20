@@ -3,6 +3,22 @@ import { factories } from '@strapi/strapi';
 import { resolveTenantAccess } from '../../../services/tenant-access';
 import { resolveAllowedProductIds } from '../../../services/tenant-visible-ids';
 
+async function resolveTenantOwnedProductIds(
+  strapi: any,
+  tenantId: number | null,
+): Promise<number[]> {
+  if (tenantId == null) return [];
+  const rows = await strapi.db
+    .connection('products_tenant_lnk')
+    .distinct('product_id as id')
+    .where('tenant_id', tenantId);
+  return Array.isArray(rows)
+    ? rows
+        .map((r: any) => Number(r?.id))
+        .filter((n: number) => Number.isFinite(n))
+    : [];
+}
+
 function relationValueToId(value: unknown): number | null {
   if (value == null) return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -34,7 +50,9 @@ export default factories.createCoreController('api::product.product', ({ strapi 
     }
 
     const access = await resolveTenantAccess(strapi, ctx);
-    const allowedIds = await resolveAllowedProductIds(strapi, access.visibleContentItemIds);
+    const linkedIds = await resolveAllowedProductIds(strapi, access.visibleContentItemIds);
+    const tenantOwnedIds = await resolveTenantOwnedProductIds(strapi, access.tenantId);
+    const allowedIds = Array.from(new Set<number>([...linkedIds, ...tenantOwnedIds]));
 
     const pageNum = Math.max(
       1,
@@ -107,7 +125,9 @@ export default factories.createCoreController('api::product.product', ({ strapi 
     }
 
     const access = await resolveTenantAccess(strapi, ctx);
-    const allowedIds = await resolveAllowedProductIds(strapi, access.visibleContentItemIds);
+    const linkedIds = await resolveAllowedProductIds(strapi, access.visibleContentItemIds);
+    const tenantOwnedIds = await resolveTenantOwnedProductIds(strapi, access.tenantId);
+    const allowedIds = Array.from(new Set<number>([...linkedIds, ...tenantOwnedIds]));
 
     if (!allowedIds.includes(id)) {
       ctx.notFound('Not found');
