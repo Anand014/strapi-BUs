@@ -1,7 +1,7 @@
 # Backend-v2 tenant scope - future work
 
 This file tracks follow-up tenant-isolation tasks that are not fully implemented yet.
-Later, you can say **work 1** / **work 2** and I’ll pick up exactly that task.
+Later, you can say **work 1**–**work 5** (or a specific number) and I’ll pick up exactly that task.
 
 ## Work 1: Tenant-scope `tags` and `versions`
 ### Goal
@@ -55,4 +55,17 @@ When a request has **no auth** (no user/session/API token), callers should still
 ### Implementation notes
 - Align with existing tenant resolution: same precedence as authenticated flows where possible (`X-Tenant-Key`, query param, etc. — match `tenant-access` / middleware conventions).
 - Document which routes support anonymous + tenant key vs require auth.
+
+## Work 5: Tenant-scope relation field dropdowns (admin UI)
+### Goal
+When picking a **relation** in the admin (e.g. creating **content category** and selecting **content item**), the dropdown / search should list **only records tied to the current user’s tenant**. **Super admins** see the full set (all tenants).
+
+### Expected behavior
+- Non-superadmin: relation pickers for tenant-owned entities only show targets that belong to that user’s tenant (same rules as `visibleContentItemIds` / tenant-access where applicable).
+- Superadmin: no tenant filter on these lists (or optional “all tenants” behavior if you add a toggle later).
+- Applies broadly to relation fields that cross tenant boundaries — not only content category → content item; implement consistently for other relations that need isolation.
+
+### Implementation notes
+- Usually enforced via **Content API / admin list** queries filtered by tenant (Strapi entity service or custom controllers) and/or **content-manager** extensions that pass tenant context into relation queries.
+- Mirror server-side rules so direct API calls cannot list other tenants’ records for relation resolution.
 
