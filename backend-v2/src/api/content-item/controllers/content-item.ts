@@ -30,6 +30,56 @@ async function getUserId(strapi: any, ctx: Context): Promise<number | null> {
   }
 }
 
+const SUPER_ADMIN_CODE = 'strapi-super-admin';
+const ADMIN_USERS_TABLE = 'admin_users';
+const TENANTS_TABLE = 'tenants';
+
+interface AdminUserContext {
+  userId: number | null;
+  isSuperAdmin: boolean;
+  tenantKey: string | null;
+}
+
+async function getAdminUserContext(strapi: any, ctx: Context): Promise<AdminUserContext> {
+  const userId = await getUserId(strapi, ctx);
+  if (!userId) return { userId: null, isSuperAdmin: false, tenantKey: null };
+
+  try {
+    // Roles come from Strapi relation mappings, but tenant scoping is based on `tenant_id`
+    // column directly because `populate('tenant')` can be unreliable depending on schema hooks.
+    const user = await strapi.db.query('admin::user').findOne({
+      where: { id: userId },
+      populate: ['roles', 'tenant'],
+    });
+
+    const roles: Array<{ code?: string }> = user?.roles || [];
+    const isSuperAdmin = Array.isArray(roles) && roles.some((r) => r.code === SUPER_ADMIN_CODE);
+
+    let tenantKey: string | null = user?.tenant?.tenant_key ?? null;
+    if (!tenantKey) {
+      const rawTenantRows = await strapi.db.connection(ADMIN_USERS_TABLE)
+        .where('id', userId)
+        .select('tenant_id');
+      const tenantId = rawTenantRows?.[0]?.tenant_id ?? null;
+      if (tenantId != null) {
+        const rawTenant = await strapi.db.connection(TENANTS_TABLE)
+          .where('id', tenantId)
+          .select('tenant_key');
+        const rawTenantKey = rawTenant?.[0]?.tenant_key ?? null;
+        tenantKey = rawTenantKey != null ? String(rawTenantKey) : null;
+      }
+    }
+
+    return {
+      userId,
+      isSuperAdmin,
+      tenantKey: tenantKey != null ? String(tenantKey) : null,
+    };
+  } catch {
+    return { userId, isSuperAdmin: false, tenantKey: null };
+  }
+}
+
 function formatPublicItem(item: any) {
   return {
     id: item.id,
@@ -45,7 +95,9 @@ function formatPublicItem(item: any) {
       ? {
           id: item.tenant.id,
           name: item.tenant.name,
-          slug: item.tenant.slug,
+          tenant_key: item.tenant.tenant_key,
+          // Back-compat: keep `slug` as an alias for tenant_key.
+          slug: item.tenant.tenant_key,
         }
       : undefined,
     product: item.product
@@ -97,8 +149,8 @@ export default factories.createCoreController(
         ],
       };
 
-      const userId = await getUserId(strapi, ctx);
-      const isAuthenticated = Boolean(userId);
+      const adminCtx = await getAdminUserContext(strapi, ctx);
+      const isAuthenticated = Boolean(adminCtx.userId);
 
       const filters: any = {};
       if (!isAuthenticated) {
@@ -106,8 +158,24 @@ export default factories.createCoreController(
       }
 
       filters.$and = [textFilter];
-      if (typeof tenant === 'string' && tenant.trim()) {
-        filters.$and.push({ tenant: { slug: tenant.trim().toLowerCase() } });
+
+      const requestedTenantKey =
+        typeof tenant === 'string' && tenant.trim()
+          ? tenant.trim().toLowerCase()
+          : '';
+
+      // Tenant scoping:
+      // - Non-superadmin: always filter to their assigned tenant and deny if missing.
+      // - Superadmin: allow optional request tenant filtering.
+      // - Unauthenticated: use request tenant filtering (visibility already constrained above).
+      if (isAuthenticated && !adminCtx.isSuperAdmin) {
+        if (!adminCtx.tenantKey) {
+          ctx.forbidden('Tenant assignment required');
+          return;
+        }
+        filters.$and.push({ tenant: { tenant_key: adminCtx.tenantKey.toLowerCase() } });
+      } else if (requestedTenantKey) {
+        filters.$and.push({ tenant: { tenant_key: requestedTenantKey } });
       }
 
       const allItems = await strapi.entityService.findMany(
