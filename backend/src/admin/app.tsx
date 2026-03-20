@@ -1,4 +1,6 @@
 import React, { useEffect } from "react";
+import { fetchFnsBusinessUnits } from "./fns";
+import { log } from "node:console";
 
 const USERS_LIST_RE = /\/settings\/users\/?(\?.*)?$/;
 const USERS_LIST_OR_MODAL_RE = /\/settings\/users/;
@@ -17,7 +19,10 @@ const TD_STYLE = "padding: 10px 16px; vertical-align: middle;";
 
 interface BuOption {
   id: number;
+  documentId: string;
   name: string;
+  slug: string;
+  [key: string]: unknown;
 }
 
 interface BuUserInfo {
@@ -124,6 +129,10 @@ async function buFetch(
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...((options.headers as Record<string, string>) || {}),
   };
+
+  const result = await fetchFnsBusinessUnits()
+  console.log("All business units: ", result);
+  
   const res = await fetch(fullUrl, {
     ...options,
     headers,
@@ -148,17 +157,40 @@ async function buFetch(
   return payload;
 }
 
+// async function loadBuData(): Promise<void> {
+//   if (dataLoaded) return;
+//   try {
+//     const body = (await buFetch("/admin/bu-options")) as
+//       | { data?: BuOption[] }
+//       | BuOption[];
+//     buOptions = Array.isArray(body)
+//       ? body
+//       : Array.isArray(body?.data)
+//         ? body.data
+//         : [];
+//     const userInfo = (await buFetch("/admin/bu-users-info")) as {
+//       data?: BuUserInfo[];
+//     };
+//     const list = userInfo?.data ?? [];
+//     userBuMap = {};
+//     (Array.isArray(list) ? list : []).forEach((u) => {
+//       userBuMap[String(u.id)] = u.buId != null ? String(u.buId) : "";
+//     });
+//     dataLoaded = true;
+//   } catch {
+//     dataLoaded = false;
+//   }
+// }
+
 async function loadBuData(): Promise<void> {
   if (dataLoaded) return;
   try {
     const body = (await buFetch("/admin/bu-options")) as
       | { data?: BuOption[] }
       | BuOption[];
-    buOptions = Array.isArray(body)
-      ? body
-      : Array.isArray(body?.data)
-        ? body.data
-        : [];
+    const businessUnits = await fetchFnsBusinessUnits();    
+    buOptions = businessUnits;;
+    
     const userInfo = (await buFetch("/admin/bu-users-info")) as {
       data?: BuUserInfo[];
     };
@@ -173,9 +205,11 @@ async function loadBuData(): Promise<void> {
   }
 }
 
+
 function getBuName(buId: string | null | undefined): string {
   if (buId == null || buId === "") return "—";
-  const opt = buOptions.find((b) => String(b.id) === String(buId));
+  // const opt = buOptions.find((b) => String(b.id) === String(buId)); overrideen
+  const opt = buOptions.find((b) => String(b.documentId) === String(buId));
   return opt?.name ?? "—";
 }
 
@@ -248,16 +282,16 @@ function installFetchInterceptor(): void {
         if (data && typeof data === "object") {
           if (isCreate && window.__buInviteSelectedBu !== undefined) {
             if (window.__buInviteSelectedBu !== "")
-              data.bu = window.__buInviteSelectedBu;
+              data.businessUnit = window.__buInviteSelectedBu;
           } else if (Object.prototype.hasOwnProperty.call(data, "bu"))
-            delete data.bu;
+            delete data.businessUnit;
           opts = { ...opts, body: JSON.stringify(data) };
         }
       } catch {
         // ignore
       }
     }
-    return orig.call(this, url, opts).then((r) => {
+    return orig.call(this, url, opts).then((r) => {      
       if (isCreate && r?.status === 201) {
         dataLoaded = false;
         setTimeout(() => refreshBuUsersAndTable(), REFRESH_AFTER_INVITE_MS);
@@ -325,7 +359,8 @@ function injectInviteModalBu(): void {
       sel.appendChild(blank);
       buOptions.forEach((b) => {
         const o = document.createElement("option");
-        o.value = String(b.id);
+        // o.value = String(b.id);  override with the o.value = b.documentId; change it
+        o.value = b.documentId;
         o.textContent = b.name;
         sel.appendChild(o);
       });
@@ -387,7 +422,8 @@ function injectInviteModalBu(): void {
   sel.appendChild(blank);
   buOptions.forEach((b) => {
     const o = document.createElement("option");
-    o.value = String(b.id);
+    // o.value = String(b.id); overrriedn
+    o.value = String(b.documentId); 
     o.textContent = b.name;
     sel.appendChild(o);
   });

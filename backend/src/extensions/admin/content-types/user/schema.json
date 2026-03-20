@@ -15,6 +15,12 @@
       "type": "boolean",
       "default": false,
       "description": "When true, user can create documents for specific or shared BUs"
+    },
+    "businessUnit": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::business-unit.business-unit",
+      "description": "Primary business unit for this user (for document ownership)"
     }
   }
 }

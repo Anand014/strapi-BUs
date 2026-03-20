@@ -47,6 +47,12 @@
       "relation": "oneToMany",
       "target": "api::user-bu-role.user-bu-role",
       "mappedBy": "businessUnit"
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "business_units"
     }
   }
 }

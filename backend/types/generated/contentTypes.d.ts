@@ -467,6 +467,10 @@ export interface ApiBusinessUnitBusinessUnit
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
     userBuRoles: Schema.Attribute.Relation<
       'oneToMany',
       'api::user-bu-role.user-bu-role'
@@ -602,8 +606,7 @@ export interface ApiFolderFolder extends Struct.CollectionTypeSchema {
     businessUnit: Schema.Attribute.Relation<
       'manyToOne',
       'api::business-unit.business-unit'
-    > &
-      Schema.Attribute.Required;
+    >;
     children: Schema.Attribute.Relation<'oneToMany', 'api::folder.folder'>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -671,8 +674,7 @@ export interface ApiUserBuRoleUserBuRole extends Struct.CollectionTypeSchema {
     businessUnit: Schema.Attribute.Relation<
       'manyToOne',
       'api::business-unit.business-unit'
-    > &
-      Schema.Attribute.Required;
+    >;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1149,10 +1151,13 @@ export interface PluginUsersPermissionsUser
   };
   options: {
     draftAndPublish: false;
-    timestamps: true;
   };
   attributes: {
     blocked: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    business_units: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::business-unit.business-unit'
+    >;
     confirmationToken: Schema.Attribute.String & Schema.Attribute.Private;
     confirmed: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     createdAt: Schema.Attribute.DateTime;

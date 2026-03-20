@@ -18,8 +18,7 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "api::business-unit.business-unit",
-      "inversedBy": "folders",
-      "required": true
+      "inversedBy": "folders"
     },
     "parent": {
       "type": "relation",

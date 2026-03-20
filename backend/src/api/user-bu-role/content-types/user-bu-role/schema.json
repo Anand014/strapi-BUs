@@ -20,12 +20,15 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "api::business-unit.business-unit",
-      "inversedBy": "userBuRoles",
-      "required": true
+      "inversedBy": "userBuRoles"
     },
     "role": {
       "type": "enumeration",
-      "enum": ["viewer", "editor", "admin"],
+      "enum": [
+        "viewer",
+        "editor",
+        "admin"
+      ],
       "required": true
     }
   }

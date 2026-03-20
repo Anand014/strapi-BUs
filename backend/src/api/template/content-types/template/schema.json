@@ -17,7 +17,8 @@
     "businessUnit": {
       "type": "relation",
       "relation": "manyToOne",
-      "target": "api::business-unit.business-unit"
+      "target": "api::business-unit.business-unit",
+      "inversedBy": "templates"
     },
     "folder": {
       "type": "relation",
