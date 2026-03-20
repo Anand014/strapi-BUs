@@ -116,10 +116,11 @@ async function resolveVisibleContentItemIds(
   tenantId: number | null,
   includePrivateVisibility: boolean,
 ): Promise<number[]> {
-  // Derive visibility strictly from:
+  // Derive visibility from:
   // - owned content-items (content_items linked to tenant via content_items_tenant_lnk)
   // - shared content-items (document_shares linked to tenant via document_shares_tenant_lnk)
   // - global content-items (content_items with no tenant link row)
+  // - any tenant's *published* content-items with visibility public (cross-tenant catalog)
   const visibilityCond = includePrivateVisibility ? null : 'public';
 
   const contentItemsConn = strapi.db.connection('content_items');
@@ -225,6 +226,21 @@ async function resolveVisibleContentItemIds(
   for (const id of ownedIds) merged.add(id);
   for (const id of globalIds) merged.add(id);
   for (const id of sharedIds) merged.add(id);
+
+  // Published + public: visible to every tenant and to unauthenticated callers (aligns with draftAndPublish).
+  const allPublicPublishedRows = await contentItemsConn
+    .clone()
+    .select('content_items.id as id')
+    .where('content_items.visibility', 'public')
+    .whereNotNull('content_items.published_at');
+
+  const allPublicPublishedIds = Array.isArray(allPublicPublishedRows)
+    ? allPublicPublishedRows
+        .map((r: any) => Number(r.id))
+        .filter((n: number) => Number.isFinite(n))
+    : [];
+  for (const id of allPublicPublishedIds) merged.add(id);
+
   return Array.from(merged);
 }
 
@@ -236,8 +252,9 @@ async function resolveVisibleContentItemIds(
  * - Superadmin can override tenant using `?tenant=<tenantKey>`, otherwise uses their assigned tenant.
  * - Unauthenticated users can optionally provide `?tenant=<tenantKey>`; otherwise they only see global.
  *
- * Returned `visibleContentItemIds` include owned + shared + global, and apply `visibility='public'`
- * when unauthenticated.
+ * Returned `visibleContentItemIds` include owned + shared + global + all *published* items with
+ * `visibility='public'` (any tenant). Unauthenticated callers still only receive public visibility
+ * in that union; private items remain limited to owned/shared/global rules for authenticated tenants.
  */
 export async function resolveTenantAccess(strapi: any, ctx: Context): Promise<ResolvedTenantAccess> {
   const cacheKey = '__tenant_access_resolved';

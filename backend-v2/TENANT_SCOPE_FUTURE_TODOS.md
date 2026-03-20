@@ -44,3 +44,15 @@ Users must create/select their tenant before they can invite other people.
 ### Implementation notes
 - Add/verify server-side guard(s) in the invite/create endpoints to require `access.tenantKey` (or equivalent tenant context) before proceeding.
 
+## Work 4: Tenant key for unauthenticated requests
+### Goal
+When a request has **no auth** (no user/session/API token), callers should still be able to scope data to a tenant by passing an explicit **tenant key** (e.g. query param or header), so public or anonymous clients receive the correct tenant’s data instead of everything or nothing.
+
+### Expected behavior
+- Unauthenticated `GET` (and any other relevant) endpoints that are tenant-scoped for logged-in users should accept a tenant key when there is no auth and resolve tenant context from it.
+- Reject or ignore invalid/missing tenant keys according to product rules (e.g. 400 vs empty list).
+
+### Implementation notes
+- Align with existing tenant resolution: same precedence as authenticated flows where possible (`X-Tenant-Key`, query param, etc. — match `tenant-access` / middleware conventions).
+- Document which routes support anonymous + tenant key vs require auth.
+

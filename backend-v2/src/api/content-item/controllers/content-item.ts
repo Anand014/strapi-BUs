@@ -3,6 +3,81 @@ import { factories } from '@strapi/strapi';
 
 import { resolveTenantAccess } from '../../../services/tenant-access';
 
+const CONTENT_ITEM_UID = 'api::content-item.content-item';
+
+/**
+ * Strapi 5 entityService.findMany defaults to draft documents; tenant-visible ids are DB row ids
+ * and may point at published rows. Match that by status (and merge draft+published when needed).
+ */
+async function findManyContentItemsForAccess(
+  strapi: any,
+  filters: Record<string, unknown>,
+  visibleIds: number[],
+  options: {
+    sort: Record<string, string>;
+    populate: unknown;
+    limit: number;
+    includePrivateVisibility: boolean;
+  },
+): Promise<any[]> {
+  const { sort, populate, limit, includePrivateVisibility } = options;
+  const sortKey = Object.keys(sort)[0] || 'updatedAt';
+  const sortDir = sort[sortKey] === 'asc' ? 'asc' : 'desc';
+
+  if (visibleIds.length === 0) return [];
+
+  if (!includePrivateVisibility) {
+    const rows = await strapi.entityService.findMany(CONTENT_ITEM_UID, {
+      filters,
+      sort,
+      populate,
+      limit,
+      status: 'published',
+    });
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  const innerLimit = Math.min(1000, Math.max(visibleIds.length, limit));
+  const [published, draft] = await Promise.all([
+    strapi.entityService.findMany(CONTENT_ITEM_UID, {
+      filters,
+      sort,
+      populate,
+      limit: innerLimit,
+      status: 'published',
+    }),
+    strapi.entityService.findMany(CONTENT_ITEM_UID, {
+      filters,
+      sort,
+      populate,
+      limit: innerLimit,
+      status: 'draft',
+    }),
+  ]);
+  const pubArr = Array.isArray(published) ? published : [];
+  const drfArr = Array.isArray(draft) ? draft : [];
+  const byDoc = new Map<string, any>();
+  for (const row of drfArr) {
+    const d = row?.documentId;
+    if (d != null) byDoc.set(String(d), row);
+  }
+  for (const row of pubArr) {
+    const d = row?.documentId;
+    if (d != null) byDoc.set(String(d), row);
+  }
+  const list = Array.from(byDoc.values());
+  list.sort((a, b) => {
+    const av = a?.[sortKey];
+    const bv = b?.[sortKey];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+  return list.slice(0, limit);
+}
+
 function relationValueToId(value: unknown): number | null {
   if (value == null) return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -125,15 +200,12 @@ export default factories.createCoreController(
         },
       ];
 
-      const allItems = await strapi.entityService.findMany(
-        'api::content-item.content-item',
-        {
-          filters,
-          sort: sortObj,
-          populate: ['tenant', 'product', 'category'],
-          limit: 1000,
-        },
-      );
+      const allItems = await findManyContentItemsForAccess(strapi, filters, visibleIds, {
+        sort: sortObj,
+        populate: ['tenant', 'product', 'category'],
+        limit: 1000,
+        includePrivateVisibility: access.includePrivateVisibility,
+      });
 
       const list = Array.isArray(allItems) ? allItems : [];
       const total = list.length;
@@ -198,19 +270,16 @@ export default factories.createCoreController(
           : tenantFilters;
 
       const fetchLimit = Math.min(1000, start + pageSize);
-      const allItems = await strapi.entityService.findMany(
-        'api::content-item.content-item',
-        {
-          filters,
-          sort: sortObj,
-          populate: (ctx.query as any)?.populate ?? [
-            'tenant',
-            'product',
-            'category',
-          ],
-          limit: fetchLimit,
-        },
-      );
+      const allItems = await findManyContentItemsForAccess(strapi, filters, visibleIds, {
+        sort: sortObj,
+        populate: (ctx.query as any)?.populate ?? [
+          'tenant',
+          'product',
+          'category',
+        ],
+        limit: fetchLimit,
+        includePrivateVisibility: access.includePrivateVisibility,
+      });
 
       const list = Array.isArray(allItems) ? allItems : [];
       const total = list.length;
@@ -249,18 +318,15 @@ export default factories.createCoreController(
         return;
       }
 
-      const item = await strapi.entityService.findOne(
-        'api::content-item.content-item',
-        id,
-        {
-          populate: (ctx.query as any)?.populate ?? [
-            'tenant',
-            'product',
-            'category',
-            'swagger',
-          ],
-        },
-      );
+      const item = await strapi.db.query(CONTENT_ITEM_UID).findOne({
+        where: { id },
+        populate: (ctx.query as any)?.populate ?? [
+          'tenant',
+          'product',
+          'category',
+          'swagger',
+        ],
+      });
 
       if (!item) {
         ctx.notFound('Not found');
@@ -299,10 +365,7 @@ export default factories.createCoreController(
         data.tenant = access.tenantId;
       }
 
-      const created = await strapi.entityService.create(
-        'api::content-item.content-item',
-        { data },
-      );
+      const created = await strapi.entityService.create(CONTENT_ITEM_UID, { data });
       ctx.body = { data: created };
     },
 
@@ -342,11 +405,7 @@ export default factories.createCoreController(
         data.tenant = access.tenantId;
       }
 
-      const updated = await strapi.entityService.update(
-        'api::content-item.content-item',
-        id,
-        { data },
-      );
+      const updated = await strapi.entityService.update(CONTENT_ITEM_UID, id, { data });
       ctx.body = { data: updated };
     },
   }),
