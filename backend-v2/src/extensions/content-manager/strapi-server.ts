@@ -119,6 +119,163 @@ async function resolveAllowedIdsForModel(
   }
 }
 
+async function resolveTenantScopedCategoryIdsForContentManager(
+  strapi: Core.Strapi,
+  access: Awaited<ReturnType<typeof resolveTenantAccess>>,
+): Promise<number[]> {
+  // Content-manager needs to list/edit categories for the tenant even when
+  // they are not yet linked to any tenant-visible content-items.
+  const rows = access.tenantId != null
+    ? await (strapi as any).db
+        .connection('content_categories_tenant_lnk')
+        .distinct('content_category_id as id')
+        .where('tenant_id', access.tenantId)
+    : await (strapi as any).db.connection('content_categories').select('id');
+  const initial = Array.isArray(rows)
+    ? rows.map((r: any) => Number(r?.id)).filter((n: number) => Number.isFinite(n))
+    : [];
+
+  const allowed = new Set<number>(initial);
+  const queue: number[] = [...initial];
+
+  // Include parent chain so the category tree remains navigable.
+  while (queue.length > 0) {
+    const batch = queue.splice(0, 500);
+    const parents = await (strapi as any).db.connection('content_categories_parent_lnk')
+      .select('inv_content_category_id as id')
+      .whereIn('content_category_id', batch);
+
+    if (!Array.isArray(parents)) continue;
+
+    for (const row of parents as any[]) {
+      const parentId = Number(row?.id);
+      if (!Number.isFinite(parentId)) continue;
+      if (!allowed.has(parentId)) {
+        allowed.add(parentId);
+        queue.push(parentId);
+      }
+    }
+  }
+
+  return Array.from(allowed);
+}
+
+async function resolveTenantScopedProductIdsForContentManager(
+  strapi: Core.Strapi,
+  access: Awaited<ReturnType<typeof resolveTenantAccess>>,
+): Promise<number[]> {
+  const rows =
+    access.tenantId != null
+      ? await (strapi as any).db
+          .connection('products_tenant_lnk')
+          .distinct('product_id as id')
+          .where('tenant_id', access.tenantId)
+      : await (strapi as any).db
+          .connection('products_tenant_lnk')
+          .distinct('product_id as id');
+
+  return Array.isArray(rows)
+    ? rows
+        .map((r: any) => Number(r?.id))
+        .filter((n: number) => Number.isFinite(n))
+    : [];
+}
+
+async function resolveTenantScopedNavigationIdsForContentManager(
+  strapi: Core.Strapi,
+  access: Awaited<ReturnType<typeof resolveTenantAccess>>,
+): Promise<number[]> {
+  const rows =
+    access.tenantId != null
+      ? await (strapi as any).db
+          .connection('navigation_items_tenant_lnk')
+          .distinct('navigation_item_id as id')
+          .where('tenant_id', access.tenantId)
+      : await (strapi as any).db
+          .connection('navigation_items_tenant_lnk')
+          .distinct('navigation_item_id as id');
+
+  const initial = Array.isArray(rows)
+    ? rows
+        .map((r: any) => Number(r?.id))
+        .filter((n: number) => Number.isFinite(n))
+    : [];
+
+  const allowed = new Set<number>(initial);
+  const queue: number[] = [...initial];
+
+  // Include parent chain so the tree stays navigable in list views.
+  while (queue.length > 0) {
+    const batch = queue.splice(0, 500);
+    const parents = await (strapi as any).db.connection('navigation_items_parent_lnk')
+      .select('inv_navigation_item_id as id')
+      .whereIn('navigation_item_id', batch);
+
+    if (!Array.isArray(parents)) continue;
+
+    for (const row of parents as any[]) {
+      const parentId = Number(row?.id);
+      if (!Number.isFinite(parentId)) continue;
+      if (!allowed.has(parentId)) {
+        allowed.add(parentId);
+        queue.push(parentId);
+      }
+    }
+  }
+
+  return Array.from(allowed);
+}
+
+async function resolveTenantScopedDocumentShareIdsForContentManager(
+  strapi: Core.Strapi,
+  access: Awaited<ReturnType<typeof resolveTenantAccess>>,
+): Promise<number[]> {
+  const allowed = new Set<number>();
+
+  const fromTenantLink =
+    access.tenantId != null
+      ? await (strapi as any).db
+          .connection('document_shares_tenant_lnk')
+          .distinct('document_share_id as id')
+          .where('tenant_id', access.tenantId)
+      : await (strapi as any).db
+          .connection('document_shares_tenant_lnk')
+          .distinct('document_share_id as id');
+
+  if (Array.isArray(fromTenantLink)) {
+    for (const r of fromTenantLink as any[]) {
+      const id = Number(r?.id);
+      if (Number.isFinite(id)) allowed.add(id);
+    }
+  }
+
+  // Fallback: if a share is missing a tenant link row, infer tenant from its
+  // linked content item tenant.
+  const fromContentItemTenant =
+    access.tenantId != null
+      ? await (strapi as any).db
+          .connection('document_shares_content_item_lnk')
+          .distinct('document_share_id as id')
+          .join(
+            'content_items_tenant_lnk',
+            'document_shares_content_item_lnk.content_item_id',
+            'content_items_tenant_lnk.content_item_id',
+          )
+          .where('content_items_tenant_lnk.tenant_id', access.tenantId)
+      : await (strapi as any).db
+          .connection('document_shares_content_item_lnk')
+          .distinct('document_share_id as id');
+
+  if (Array.isArray(fromContentItemTenant)) {
+    for (const r of fromContentItemTenant as any[]) {
+      const id = Number(r?.id);
+      if (Number.isFinite(id)) allowed.add(id);
+    }
+  }
+
+  return Array.from(allowed);
+}
+
 function normalizeRequestData(ctx: any): Record<string, unknown> {
   const payload = ctx.request?.body as any;
   return (payload?.data ?? payload ?? {}) as Record<string, unknown>;
@@ -150,7 +307,16 @@ export default (plugin: {
     if (!strapi) return originalFind?.(ctx);
 
     const access = await resolveTenantAccess(strapi, ctx);
-    const allowedIds = await resolveAllowedIdsForModel(strapi, ctx, model, access);
+    const allowedIds =
+      model === MODEL_UIDS.contentCategory
+        ? await resolveTenantScopedCategoryIdsForContentManager(strapi, access)
+        : model === MODEL_UIDS.documentShare
+          ? await resolveTenantScopedDocumentShareIdsForContentManager(strapi, access)
+          : model === MODEL_UIDS.navigationItem
+            ? await resolveTenantScopedNavigationIdsForContentManager(strapi, access)
+            : model === MODEL_UIDS.product
+              ? await resolveTenantScopedProductIdsForContentManager(strapi, access)
+        : await resolveAllowedIdsForModel(strapi, ctx, model, access);
 
     if (!allowedIds.length) {
       const { page, pageSize } = getPageAndSize(ctx);
@@ -194,7 +360,16 @@ export default (plugin: {
       if (!Number.isFinite(id)) return originalFindOne?.(ctx);
 
       const access = await resolveTenantAccess(strapi, ctx);
-      const allowedIds = await resolveAllowedIdsForModel(strapi, ctx, model, access);
+      const allowedIds =
+        model === MODEL_UIDS.contentCategory
+          ? await resolveTenantScopedCategoryIdsForContentManager(strapi, access)
+          : model === MODEL_UIDS.documentShare
+            ? await resolveTenantScopedDocumentShareIdsForContentManager(strapi, access)
+            : model === MODEL_UIDS.navigationItem
+              ? await resolveTenantScopedNavigationIdsForContentManager(strapi, access)
+              : model === MODEL_UIDS.product
+                ? await resolveTenantScopedProductIdsForContentManager(strapi, access)
+          : await resolveAllowedIdsForModel(strapi, ctx, model, access);
       if (!allowedIds.includes(id)) {
         ctx.notFound('Not found');
         return;
@@ -267,7 +442,16 @@ export default (plugin: {
     if (!Number.isFinite(id)) return originalUpdate?.(ctx);
 
     const access = await resolveTenantAccess(strapi, ctx);
-    const allowedIds = await resolveAllowedIdsForModel(strapi, ctx, model, access);
+    const allowedIds =
+      model === MODEL_UIDS.contentCategory
+        ? await resolveTenantScopedCategoryIdsForContentManager(strapi, access)
+        : model === MODEL_UIDS.documentShare
+          ? await resolveTenantScopedDocumentShareIdsForContentManager(strapi, access)
+          : model === MODEL_UIDS.navigationItem
+            ? await resolveTenantScopedNavigationIdsForContentManager(strapi, access)
+            : model === MODEL_UIDS.product
+              ? await resolveTenantScopedProductIdsForContentManager(strapi, access)
+        : await resolveAllowedIdsForModel(strapi, ctx, model, access);
     if (!allowedIds.includes(id)) {
       ctx.notFound('Not found');
       return;
@@ -307,7 +491,16 @@ export default (plugin: {
     if (!Number.isFinite(id)) return originalDelete?.(ctx);
 
     const access = await resolveTenantAccess(strapi, ctx);
-    const allowedIds = await resolveAllowedIdsForModel(strapi, ctx, model, access);
+    const allowedIds =
+      model === MODEL_UIDS.contentCategory
+        ? await resolveTenantScopedCategoryIdsForContentManager(strapi, access)
+        : model === MODEL_UIDS.documentShare
+          ? await resolveTenantScopedDocumentShareIdsForContentManager(strapi, access)
+          : model === MODEL_UIDS.navigationItem
+            ? await resolveTenantScopedNavigationIdsForContentManager(strapi, access)
+            : model === MODEL_UIDS.product
+              ? await resolveTenantScopedProductIdsForContentManager(strapi, access)
+        : await resolveAllowedIdsForModel(strapi, ctx, model, access);
     if (!allowedIds.includes(id)) {
       ctx.notFound('Not found');
       return;
