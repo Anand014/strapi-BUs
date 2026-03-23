@@ -136,12 +136,25 @@ function formatPublicItem(item: any) {
   };
 }
 
+function getRequiredTenantKey(ctx: Context): string | null {
+  const tenantKey = (ctx.query as any)?.tenant_key ?? (ctx.query as any)?.tenant;
+  if (typeof tenantKey !== 'string') return null;
+  const normalized = tenantKey.trim();
+  return normalized ? normalized : null;
+}
+
 export default factories.createCoreController(
   'api::content-item.content-item',
   ({ strapi }) => ({
     async search(ctx: Context) {
       if (!strapi) {
         ctx.throw(503, 'Service unavailable');
+        return;
+      }
+
+      const tenantKey = getRequiredTenantKey(ctx);
+      if (!tenantKey) {
+        ctx.badRequest('tenant key is required (tenant_key query parameter)');
         return;
       }
 
@@ -233,6 +246,12 @@ export default factories.createCoreController(
         return;
       }
 
+      const tenantKey = getRequiredTenantKey(ctx);
+      if (!tenantKey) {
+        ctx.badRequest('tenant key is required (tenant_key query parameter)');
+        return;
+      }
+
       const access = await resolveTenantAccess(strapi, ctx);
       const visibleIds = Array.isArray(access.visibleContentItemIds)
         ? access.visibleContentItemIds
@@ -302,6 +321,12 @@ export default factories.createCoreController(
     async findOne(ctx: Context) {
       if (!strapi) {
         ctx.throw(503, 'Service unavailable');
+        return;
+      }
+
+      const tenantKey = getRequiredTenantKey(ctx);
+      if (!tenantKey) {
+        ctx.badRequest('tenant key is required (tenant_key query parameter)');
         return;
       }
 
