@@ -1,0 +1,56 @@
+{
+  "kind": "collectionType",
+  "collectionName": "content_categories",
+  "info": {
+    "singularName": "content-category",
+    "pluralName": "content-categories",
+    "displayName": "Content Category",
+    "description": "Hierarchical folder structure for documentation"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "name",
+      "required": true
+    },
+    "parent": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::content-category.content-category",
+      "inversedBy": "children"
+    },
+    "children": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::content-category.content-category",
+      "mappedBy": "parent"
+    },
+    "product": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product.product",
+      "inversedBy": "categories",
+      "description": "Optional; omit for tenant-level root categories (e.g. Introduction)"
+    },
+    "tenant": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::tenant.tenant",
+      "inversedBy": "categories",
+      "required": true
+    },
+    "content_items": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::content-item.content-item",
+      "mappedBy": "category"
+    }
+  }
+}

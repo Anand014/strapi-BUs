@@ -1,0 +1,26 @@
+{
+  "kind": "collectionType",
+  "collectionName": "document_shares",
+  "info": {
+    "singularName": "document-share",
+    "pluralName": "document-shares",
+    "displayName": "Document Share"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "content_item": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::content-item.content-item",
+      "inversedBy": "document_shares"
+    },
+    "tenant": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::tenant.tenant"
+    }
+  }
+}

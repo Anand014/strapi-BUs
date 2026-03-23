@@ -1,0 +1,34 @@
+{
+  "kind": "collectionType",
+  "collectionName": "versions",
+  "info": {
+    "singularName": "version",
+    "pluralName": "versions",
+    "displayName": "Content Version",
+    "description": "Tracks documentation versions per content item for rollback/history"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "version_number": {
+      "type": "integer",
+      "required": true
+    },
+    "content_item": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::content-item.content-item",
+      "inversedBy": "versions"
+    },
+    "content": {
+      "type": "text",
+      "required": true
+    },
+    "created_by": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "admin::user"
+    }
+  }
+}

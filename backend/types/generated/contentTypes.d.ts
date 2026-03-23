@@ -491,8 +491,7 @@ export interface ApiDocumentAccessDocumentAccess
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    document: Schema.Attribute.Relation<'manyToOne', 'api::document.document'> &
-      Schema.Attribute.Required;
+    document: Schema.Attribute.Relation<'manyToOne', 'api::document.document'>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -525,8 +524,7 @@ export interface ApiDocumentShareDocumentShare
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    document: Schema.Attribute.Relation<'manyToOne', 'api::document.document'> &
-      Schema.Attribute.Required;
+    document: Schema.Attribute.Relation<'manyToOne', 'api::document.document'>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -570,6 +568,7 @@ export interface ApiDocumentDocument extends Struct.CollectionTypeSchema {
       'oneToMany',
       'api::document-share.document-share'
     >;
+    isPublic: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -579,8 +578,7 @@ export interface ApiDocumentDocument extends Struct.CollectionTypeSchema {
     ownerBu: Schema.Attribute.Relation<
       'manyToOne',
       'api::business-unit.business-unit'
-    > &
-      Schema.Attribute.Required;
+    >;
     publishedAt: Schema.Attribute.DateTime;
     template: Schema.Attribute.Relation<'manyToOne', 'api::template.template'>;
     title: Schema.Attribute.String & Schema.Attribute.Required;

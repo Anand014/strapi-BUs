@@ -54,7 +54,7 @@ async function getDocumentDbId(
   }
 }
 
-const PROTECTED_FIELDS = ["ownerBu", "template", "documentShares", "documentAccesses"] as const;
+const PROTECTED_FIELDS = ["ownerBu", "template", "documentShares", "documentAccesses", "isPublic"] as const;
 
 function getStrapi(): any {
   return (global as any).strapi;

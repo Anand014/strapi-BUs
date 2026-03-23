@@ -1,5 +1,5 @@
 /**
- * Custom document controller: list, findOne, search with access resolution.
+ * Custom document controller: list, findOne with access resolution.
  * Follows 03-api-design-and-edge-cases.md.
  */
 
@@ -13,13 +13,60 @@ import {
 const docApi = (strapi: Core.Strapi) => (uid: string) =>
   (strapi as any).documents(uid);
 
-function getUserId(ctx: Context): number | null {
-  const user = (ctx.state as any).user;
-  if (user && typeof user.id === "number") return user.id;
-  return null;
+/**
+ * Resolve numeric document ids to documentIds (strings) for Strapi 5 Document Service.
+ * The document service list filters by documentId; filtering by id returns no results.
+ */
+export async function resolveDocumentIds(
+  strapi: Core.Strapi,
+  numericIds: number[]
+): Promise<string[]> {
+  if (numericIds.length === 0) return [];
+  const api = docApi(strapi)("api::document.document");
+  const result: string[] = [];
+  const idSet = new Set(numericIds);
+  for (const status of ["published", "draft"] as const) {
+    try {
+      const docs = await api.findMany({
+        status,
+        fields: ["id", "documentId"],
+        limit: 1000,
+      } as any);
+      for (const d of docs || []) {
+        if (d.id != null && idSet.has(d.id)) {
+          if (typeof d.documentId === "string") result.push(d.documentId);
+          else result.push(String(d.id));
+        }
+      }
+    } catch {
+      // skip
+    }
+  }
+  return [...new Set(result)];
 }
 
-async function formatDocumentWithMeta(
+export function getUserId(ctx: Context): number | null {
+  const user = (ctx.state as any).user;
+  if (!user) return null;
+  const id = user.id;
+  const num = typeof id === "number" ? id : Number(id);
+  return Number.isFinite(num) ? num : null;
+}
+
+/** Minimal shape for unauthenticated (public) document responses. */
+export function formatPublicDocument(doc: any) {
+  return {
+    id: doc.documentId ?? doc.id,
+    title: doc.title,
+    content: doc.content,
+    status: doc.publishedAt ? "published" : "draft",
+    publishedAt: doc.publishedAt ?? null,
+    updatedAt: doc.updatedAt,
+    createdAt: doc.createdAt,
+  };
+}
+
+export async function formatDocumentWithMeta(
   strapi: Core.Strapi,
   doc: any,
   userId: number,
@@ -70,12 +117,15 @@ const defaultController = factories.createCoreController(
 
 export default {
   ...defaultController,
+
+  /** GET /api/documents/search?q=... - delegates to search controller. */
+  async search(ctx: Context) {
+    const searchController = (await import("../../search/controllers/search")).default;
+    return searchController.search(ctx);
+  },
+
   async find(ctx: Context) {
     const userId = getUserId(ctx);
-    if (!userId) {
-      ctx.unauthorized("Authentication required");
-      return;
-    }
     const strapi = (global as any).strapi as Core.Strapi;
     if (!strapi) {
       ctx.throw(503, "Service unavailable");
@@ -95,6 +145,41 @@ export default {
     const statusFilter =
       status === "draft" || status === "published" ? status : null;
 
+    // Unauthenticated: only published public documents
+    if (!userId) {
+      const filters: any = { isPublic: true };
+      if (buSlug) filters.ownerBu = { slug: buSlug };
+      const [sortField, sortOrder] = (
+        typeof sort === "string" ? sort : "updatedAt:desc"
+      ).split(":");
+      const sortObj = {
+        [sortField || "updatedAt"]: (sortOrder || "desc").toLowerCase(),
+      };
+      const allDocs = await docApi(strapi)("api::document.document").findMany({
+        filters,
+        status: "published",
+        sort: sortObj,
+        limit: 1000,
+      } as any);
+      const list = Array.isArray(allDocs) ? allDocs : [];
+      const total = list.length;
+      const start = (pageNum - 1) * size;
+      const paginated = list.slice(start, start + size);
+      const data = paginated.map((d) => formatPublicDocument(d));
+      ctx.body = {
+        data,
+        meta: {
+          total,
+          pagination: {
+            page: pageNum,
+            pageSize: size,
+            pageCount: Math.ceil(total / size) || 1,
+          },
+        },
+      };
+      return;
+    }
+
     const accessibleIds = await getAccessibleDocumentIds(strapi, userId);
     if (accessibleIds.length === 0) {
       ctx.body = {
@@ -107,7 +192,19 @@ export default {
       return;
     }
 
-    const filters: any = { id: { $in: accessibleIds } };
+    const documentIds = await resolveDocumentIds(strapi, accessibleIds);
+    if (documentIds.length === 0) {
+      ctx.body = {
+        data: [],
+        meta: {
+          total: 0,
+          pagination: { page: pageNum, pageSize: size, pageCount: 0 },
+        },
+      };
+      return;
+    }
+
+    const filters: any = { documentId: { $in: documentIds } };
     if (buSlug) filters.ownerBu = { slug: buSlug };
     const statusParam =
       statusFilter === "published"
@@ -153,18 +250,14 @@ export default {
 
   async findOne(ctx: Context) {
     // Support both documentId and id param
+    const docId = ctx.params.documentId ?? ctx.params.id;
     const userId = getUserId(ctx);
-    if (!userId) {
-      ctx.unauthorized("Authentication required");
-      return;
-    }
     const strapi = (global as any).strapi as Core.Strapi;
     if (!strapi) {
       ctx.throw(503, "Service unavailable");
       return;
     }
 
-    const docId = ctx.params.documentId ?? ctx.params.id;
     if (!docId) {
       ctx.badRequest("Document ID required");
       return;
@@ -192,6 +285,16 @@ export default {
       return;
     }
 
+    // Unauthenticated: only allow published public documents
+    if (!userId) {
+      if (doc.publishedAt && doc.isPublic === true) {
+        ctx.body = { data: formatPublicDocument(doc) };
+      } else {
+        ctx.unauthorized("Authentication required");
+      }
+      return;
+    }
+
     const perms = await getPermissions(strapi, userId, doc.id);
     if (!perms.canView) {
       ctx.forbidden("Access denied");
@@ -200,90 +303,5 @@ export default {
 
     const formatted = await formatDocumentWithMeta(strapi, doc, userId);
     ctx.body = { data: formatted };
-  },
-
-  async search(ctx: Context) {
-    const userId = getUserId(ctx);
-    if (!userId) {
-      ctx.unauthorized("Authentication required");
-      return;
-    }
-    const strapi = (global as any).strapi as Core.Strapi;
-    if (!strapi) {
-      ctx.throw(503, "Service unavailable");
-      return;
-    }
-
-    const {
-      q,
-      content,
-      bu,
-      page = 1,
-      pageSize = 25,
-      sort = "publishedAt:desc",
-    } = ctx.query || {};
-    const term = (
-      typeof q === "string" ? q : typeof content === "string" ? content : ""
-    ).trim();
-    if (!term) {
-      ctx.badRequest("Search term (q or content) required");
-      return;
-    }
-
-    const pageNum = Math.max(1, Number(page) || 1);
-    const size = Math.min(100, Math.max(1, Number(pageSize) || 25));
-    const buSlug = typeof bu === "string" ? bu.trim().toLowerCase() : "";
-
-    const accessibleIds = await getAccessibleDocumentIds(strapi, userId);
-    if (accessibleIds.length === 0) {
-      ctx.body = {
-        data: [],
-        meta: {
-          total: 0,
-          pagination: { page: pageNum, pageSize: size, pageCount: 0 },
-        },
-      };
-      return;
-    }
-
-    const filters: any = {
-      id: { $in: accessibleIds },
-      $or: [{ title: { $containsi: term } }, { content: { $containsi: term } }],
-    };
-    if (buSlug) filters.ownerBu = { slug: buSlug };
-
-    const [sortField, sortOrder] = (
-      typeof sort === "string" ? sort : "publishedAt:desc"
-    ).split(":");
-    const sortObj = {
-      [sortField || "publishedAt"]: (sortOrder || "desc").toLowerCase(),
-    };
-
-    const allDocs = await docApi(strapi)("api::document.document").findMany({
-      filters,
-      status: "published",
-      sort: sortObj,
-      populate: ["ownerBu"],
-      limit: 1000,
-    } as any);
-    const list = Array.isArray(allDocs) ? allDocs : [];
-    const total = list.length;
-    const start = (pageNum - 1) * size;
-    const paginated = list.slice(start, start + size);
-    const data = await Promise.all(
-      paginated.map((d) => formatDocumentWithMeta(strapi, d, userId)),
-    );
-
-    ctx.body = {
-      data,
-      meta: {
-        total,
-        pagination: {
-          page: pageNum,
-          pageSize: size,
-          pageCount: Math.ceil(total / size) || 1,
-        },
-      },
-    };
   },
 };
