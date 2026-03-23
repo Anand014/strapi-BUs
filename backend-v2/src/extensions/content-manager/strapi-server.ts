@@ -8,6 +8,7 @@ import {
   resolveAllowedProductIds,
   resolveAllowedSwaggerIds,
 } from '../../services/tenant-visible-ids';
+import { notifyContentItemOnAction } from '../../utils/notifyContentItem';
 
 const MODEL_UIDS = {
   contentItem: 'api::content-item.content-item',
@@ -281,9 +282,7 @@ function normalizeRequestData(ctx: any): Record<string, unknown> {
   return (payload?.data ?? payload ?? {}) as Record<string, unknown>;
 }
 
-export default (plugin: {
-  controllers: Record<string, any>;
-}) => {
+export default (plugin: any) => {
   const coll = plugin.controllers['collection-types'];
   if (!coll) return plugin;
 
@@ -373,6 +372,17 @@ export default (plugin: {
       if (!allowedIds.includes(id)) {
         ctx.notFound('Not found');
         return;
+      }
+
+      const rowById = await (strapi as any).db.query(MODEL_UIDS.contentItem).findOne({
+        where: { id },
+        select: ['id', 'documentId'],
+      });
+
+      // Strapi content-manager findOne for collection-types expects documentId in this route.
+      // When the UI sends a numeric id (e.g. /.../27), translate it to the row documentId.
+      if (rowById?.documentId) {
+        ctx.params = { ...(ctx.params ?? {}), id: rowById.documentId };
       }
 
       return originalFindOne?.(ctx);
@@ -552,6 +562,76 @@ export default (plugin: {
         }
       }
     };
+  }
+
+  // --- Notification Interceptor for Content Items (admin routes)
+  const actionMap: Record<string, string> = {
+    'collection-types.create': 'Created',
+    'collection-types.update': 'Updated',
+    'collection-types.publish': 'Published',
+    'collection-types.unpublish': 'Unpublished',
+    'collection-types.discard': 'Discarded',
+    'collection-types.delete': 'Deleted',
+  };
+
+  const CONTENT_ITEM_UID = MODEL_UIDS.contentItem;
+
+  if (plugin.routes && plugin.routes.admin && Array.isArray(plugin.routes.admin.routes)) {
+    plugin.routes.admin.routes.forEach((route: any) => {
+      const actionLabel = actionMap[route.handler];
+      if (!actionLabel) return;
+
+      route.config = route.config || {};
+      route.config.middlewares = route.config.middlewares || [];
+
+      route.config.middlewares.push(async (ctx: any, next: any) => {
+        const isContentItem = ctx.params?.model === CONTENT_ITEM_UID;
+        let preFetchItem: any = null;
+
+        if (isContentItem && typeof ctx.params?.id !== 'undefined') {
+          try {
+            const strapi = getStrapi();
+            if (strapi) {
+              const idNum = Number(ctx.params.id);
+              if (Number.isFinite(idNum)) {
+                preFetchItem = await strapi.db.query(CONTENT_ITEM_UID).findOne({
+                  where: { id: idNum },
+                });
+              }
+            }
+          } catch {
+            // ignore prefetch failures
+          }
+        }
+
+        await next();
+
+        if (!isContentItem) return;
+        if (!(ctx.status >= 200 && ctx.status < 300)) return;
+
+        const actingUser = ctx.state?.user;
+        if (!actingUser?.id) return;
+
+        let item = ctx.body?.data || ctx.body;
+        if (preFetchItem && typeof item === 'object' && item != null) {
+          item = { ...preFetchItem, ...item };
+        }
+
+        if (!item) return;
+        if (!item?.title && !item?.slug && !item?.id) return;
+
+        try {
+          await notifyContentItemOnAction(actionLabel, item, {
+            id: actingUser.id,
+            firstname: actingUser.firstname,
+            lastname: actingUser.lastname,
+            email: actingUser.email,
+          });
+        } catch {
+          // notification failure should not break the action
+        }
+      });
+    });
   }
 
   return plugin;
