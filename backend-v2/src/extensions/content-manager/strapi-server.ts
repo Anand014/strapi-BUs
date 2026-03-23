@@ -355,8 +355,22 @@ export default (plugin: any) => {
 
       if (!ctx.state?.user?.id) return originalFindOne?.(ctx);
 
-      const id = idParam != null ? Number(idParam) : NaN;
-      if (!Number.isFinite(id)) return originalFindOne?.(ctx);
+      const isNumericIdParam = Number.isFinite(Number(idParam));
+      const rowByIdentifier = isNumericIdParam
+        ? await (strapi as any).db.query(model).findOne({
+            where: { id: Number(idParam) },
+            select: ['id', 'documentId'],
+          })
+        : await (strapi as any).db.query(model).findOne({
+            where: { documentId: idParam },
+            select: ['id', 'documentId'],
+          });
+
+      const resolvedId = Number(rowByIdentifier?.id);
+      if (!Number.isFinite(resolvedId)) {
+        ctx.notFound('Not found');
+        return;
+      }
 
       const access = await resolveTenantAccess(strapi, ctx);
       const allowedIds =
@@ -369,20 +383,15 @@ export default (plugin: any) => {
               : model === MODEL_UIDS.product
                 ? await resolveTenantScopedProductIdsForContentManager(strapi, access)
           : await resolveAllowedIdsForModel(strapi, ctx, model, access);
-      if (!allowedIds.includes(id)) {
+      if (!allowedIds.includes(resolvedId)) {
         ctx.notFound('Not found');
         return;
       }
 
-      const rowById = await (strapi as any).db.query(MODEL_UIDS.contentItem).findOne({
-        where: { id },
-        select: ['id', 'documentId'],
-      });
-
       // Strapi content-manager findOne for collection-types expects documentId in this route.
-      // When the UI sends a numeric id (e.g. /.../27), translate it to the row documentId.
-      if (rowById?.documentId) {
-        ctx.params = { ...(ctx.params ?? {}), id: rowById.documentId };
+      // For numeric id URLs (e.g. /.../27), translate to documentId.
+      if (rowByIdentifier?.documentId) {
+        ctx.params = { ...(ctx.params ?? {}), id: rowByIdentifier.documentId };
       }
 
       return originalFindOne?.(ctx);

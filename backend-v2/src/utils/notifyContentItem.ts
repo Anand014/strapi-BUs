@@ -132,7 +132,7 @@ export async function notifyContentItemOnAction(
   actingUser: { id: number; firstname?: string; lastname?: string; email?: string },
 ) {
   try {
-    const itemId = item?.id ?? item?.documentId;
+    const itemId = item?.documentId ?? item?.id;
     if (itemId == null) return;
 
     const title: string =
