@@ -264,7 +264,7 @@ export async function resolveTenantAccess(strapi: any, ctx: Context): Promise<Re
   const isAuthenticated = Boolean(adminCtx.userId);
 
   const requestedTenantKey = normalizeTenantKey(
-    (ctx.query as any)?.tenant,
+    (ctx.query as any)?.tenant_key ?? (ctx.query as any)?.tenant,
   );
 
   let tenantKey: string | null = null;
