@@ -25,7 +25,8 @@
     "tenant": {
       "type": "relation",
       "relation": "manyToOne",
-      "target": "api::tenant.tenant"
+      "target": "api::tenant.tenant",
+      "required": true
     },
     "content_items": {
       "type": "relation",

@@ -705,7 +705,8 @@ export interface ApiSwaggerSwagger extends Struct.CollectionTypeSchema {
     publishedAt: Schema.Attribute.DateTime;
     swagger_json: Schema.Attribute.JSON;
     swagger_version: Schema.Attribute.String;
-    tenant: Schema.Attribute.Relation<'manyToOne', 'api::tenant.tenant'>;
+    tenant: Schema.Attribute.Relation<'manyToOne', 'api::tenant.tenant'> &
+      Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
