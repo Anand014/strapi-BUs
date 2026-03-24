@@ -2,6 +2,7 @@ import type { Context } from 'koa';
 import { factories } from '@strapi/strapi';
 
 import { resolveTenantAccess } from '../../../services/tenant-access';
+import PlantumlEnoded from "plantuml-encoder";
 
 const CONTENT_ITEM_UID = 'api::content-item.content-item';
 
@@ -134,6 +135,18 @@ function formatPublicItem(item: any) {
         }
       : undefined,
   };
+}
+
+function endodePlantUML(plantUmlText: string): string {
+  return PlantumlEnoded.encode(plantUmlText);
+}
+
+function generatePlantUmlSourceUrl(plantuml_source: string): string | null {
+  if (!plantuml_source) {
+    return null;
+  }
+  const encoded = endodePlantUML(plantuml_source);
+  return `https://www.plantuml.com/plantuml/uml/${encoded}`;
 }
 
 export default factories.createCoreController(
@@ -285,8 +298,15 @@ export default factories.createCoreController(
       const total = list.length;
       const paginated = list.slice(start, start + pageSize);
 
+      const proccessedPaginatedData = paginated.map(item => {
+        return {
+          ...item,
+          plantuml_source_url: generatePlantUmlSourceUrl(item.plantuml_source)
+        }
+      })
+
       ctx.body = {
-        data: paginated,
+        data: proccessedPaginatedData,
         meta: {
           total,
           authenticated: access.isAuthenticated,
@@ -333,7 +353,12 @@ export default factories.createCoreController(
         return;
       }
 
-      ctx.body = { data: item };
+      const processedItem = {
+        ...item,
+        plantuml_source_url: generatePlantUmlSourceUrl(item.plantuml_source)
+      }
+      
+      ctx.body = { data: processedItem };
     },
 
     async create(ctx: Context) {
@@ -364,6 +389,9 @@ export default factories.createCoreController(
         // Editors/admins can not choose tenant; it is auto-assigned from their login.
         data.tenant = access.tenantId;
       }
+
+      
+
 
       const created = await strapi.entityService.create(CONTENT_ITEM_UID, { data });
       ctx.body = { data: created };
