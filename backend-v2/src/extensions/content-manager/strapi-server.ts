@@ -227,6 +227,27 @@ async function resolveTenantScopedNavigationIdsForContentManager(
   return Array.from(allowed);
 }
 
+async function resolveTenantScopedSwaggerIdsForContentManager(
+  strapi: Core.Strapi,
+  access: Awaited<ReturnType<typeof resolveTenantAccess>>,
+): Promise<number[]> {
+  const rows =
+    access.tenantId != null
+      ? await (strapi as any).db
+          .connection('swaggers_tenant_lnk')
+          .distinct('swagger_id as id')
+          .where('tenant_id', access.tenantId)
+      : await (strapi as any).db
+          .connection('swaggers_tenant_lnk')
+          .distinct('swagger_id as id');
+
+  return Array.isArray(rows)
+    ? rows
+        .map((r: any) => Number(r?.id))
+        .filter((n: number) => Number.isFinite(n))
+    : [];
+}
+
 async function resolveTenantScopedDocumentShareIdsForContentManager(
   strapi: Core.Strapi,
   access: Awaited<ReturnType<typeof resolveTenantAccess>>,
@@ -282,6 +303,26 @@ function normalizeRequestData(ctx: any): Record<string, unknown> {
   return (payload?.data ?? payload ?? {}) as Record<string, unknown>;
 }
 
+function ensureFieldInEditLayout(contentTypeConfig: any, fieldName: string): void {
+  const layouts = contentTypeConfig?.layouts;
+  const edit = layouts?.edit;
+  if (!Array.isArray(edit)) return;
+
+  const hasField = edit.some((section: any) => {
+    const rows = section?.layout;
+    if (!Array.isArray(rows)) return false;
+    return rows.some((row: any) => {
+      if (!Array.isArray(row)) return false;
+      return row.some((cell: any) => cell?.name === fieldName);
+    });
+  });
+  if (hasField) return;
+
+  const firstSection = edit[0];
+  if (!firstSection || !Array.isArray(firstSection.layout)) return;
+  firstSection.layout.push([{ name: fieldName, size: 6 }]);
+}
+
 export default (plugin: any) => {
   const coll = plugin.controllers['collection-types'];
   if (!coll) return plugin;
@@ -309,6 +350,8 @@ export default (plugin: any) => {
     const allowedIds =
       model === MODEL_UIDS.contentCategory
         ? await resolveTenantScopedCategoryIdsForContentManager(strapi, access)
+        : model === MODEL_UIDS.swagger
+          ? await resolveTenantScopedSwaggerIdsForContentManager(strapi, access)
         : model === MODEL_UIDS.documentShare
           ? await resolveTenantScopedDocumentShareIdsForContentManager(strapi, access)
           : model === MODEL_UIDS.navigationItem
@@ -376,6 +419,8 @@ export default (plugin: any) => {
       const allowedIds =
         model === MODEL_UIDS.contentCategory
           ? await resolveTenantScopedCategoryIdsForContentManager(strapi, access)
+          : model === MODEL_UIDS.swagger
+            ? await resolveTenantScopedSwaggerIdsForContentManager(strapi, access)
           : model === MODEL_UIDS.documentShare
             ? await resolveTenantScopedDocumentShareIdsForContentManager(strapi, access)
             : model === MODEL_UIDS.navigationItem
@@ -421,16 +466,16 @@ export default (plugin: any) => {
       }
 
       if (model === MODEL_UIDS.swagger) {
-        // swagger is allowed to be created only if it links to tenant-visible content-items.
+        // swagger can be created without linked content-items; if provided, links must be visible.
         const contentItemIds = relationValueToIds(data.content_items);
-        if (!contentItemIds.length) {
-          ctx.forbidden('Content items required');
-          return;
-        }
-        const visibleSet = new Set(access.visibleContentItemIds);
-        if (!contentItemIds.every((id) => visibleSet.has(id))) {
-          ctx.forbidden('Not allowed to link invisible content items');
-          return;
+        if (contentItemIds.length) {
+          const visibleSet = new Set(access.visibleContentItemIds);
+          const allVisible = contentItemIds.every((id) => visibleSet.has(id));
+
+          if (!allVisible) {
+            ctx.forbidden('Not allowed to link invisible content items');
+            return;
+          }
         }
       }
 
@@ -442,10 +487,42 @@ export default (plugin: any) => {
         }
         data.tenant = access.tenantId;
       }
+    } else if (model === MODEL_UIDS.swagger) {
+      // Super-admin must explicitly choose tenant for Swagger writes.
+      const requestedTenantId = relationValueToId(data.tenant);
+      if (requestedTenantId == null) {
+        ctx.badRequest('Tenant is required');
+        return;
+      }
     }
 
     ctx.request.body = { ...(ctx.request?.body ?? {}), data };
-    return originalCreate?.(ctx);
+    try {
+      await originalCreate?.(ctx);
+    } catch (err: any) {
+      throw err;
+    }
+
+    // Content-manager may strip relation fields the admin role cannot write. We still assign
+    // `data.tenant` above, but it can be dropped before persist — then tenant-scoped findOne
+    // returns 404. Re-apply tenant via entityService (server-side) so `swaggers_tenant_lnk` exists.
+    if (model === MODEL_UIDS.swagger && !access.isSuperAdmin && access.tenantId != null) {
+      const res = ctx.body as any;
+      const created = res?.data ?? res;
+      const idNum =
+        typeof created?.id === 'number' ? created.id : Number(created?.id);
+      if (Number.isFinite(idNum)) {
+        try {
+          await (strapi as any).entityService.update(MODEL_UIDS.swagger, idNum, {
+            data: { tenant: access.tenantId },
+          });
+        } catch (e: any) {
+          strapi.log?.warn?.(
+            `Swagger tenant backfill failed for ${idNum}: ${e?.message ?? String(e)}`,
+          );
+        }
+      }
+    }
   };
 
   plugin.controllers['collection-types'].update = async (ctx: any) => {
@@ -466,6 +543,8 @@ export default (plugin: any) => {
     const allowedIds =
       model === MODEL_UIDS.contentCategory
         ? await resolveTenantScopedCategoryIdsForContentManager(strapi, access)
+        : model === MODEL_UIDS.swagger
+          ? await resolveTenantScopedSwaggerIdsForContentManager(strapi, access)
         : model === MODEL_UIDS.documentShare
           ? await resolveTenantScopedDocumentShareIdsForContentManager(strapi, access)
           : model === MODEL_UIDS.navigationItem
@@ -491,6 +570,13 @@ export default (plugin: any) => {
         return;
       }
       data.tenant = access.tenantId;
+    } else if (model === MODEL_UIDS.swagger) {
+      // Super-admin must explicitly choose tenant for Swagger writes.
+      const requestedTenantId = relationValueToId(data.tenant);
+      if (requestedTenantId == null) {
+        ctx.badRequest('Tenant is required');
+        return;
+      }
     }
 
     ctx.request.body = { ...(ctx.request?.body ?? {}), data };
@@ -557,8 +643,12 @@ export default (plugin: any) => {
 
       const tenantMeta = metadatas.tenant;
       if (!tenantMeta) return;
+
       if (!tenantMeta.edit) tenantMeta.edit = {};
       tenantMeta.edit.editable = isDocumentShare;
+      tenantMeta.visible = true;
+      if (!tenantMeta.list) tenantMeta.list = {};
+      tenantMeta.list.visible = true;
 
       // Prefill tenant for tenant-scoped users so the UI renders the dropdown
       // with the correct selection on create (backend will also enforce).
@@ -569,6 +659,12 @@ export default (plugin: any) => {
         if ((tenantMeta as any).edit) {
           (tenantMeta as any).edit.defaultValue = access.tenantId;
         }
+      }
+
+      // Keep tenant field present in edit layout so users can see the selected value
+      // even if relation-read permission is limited.
+      if (!isDocumentShare) {
+        ensureFieldInEditLayout(ctx.body?.data?.contentType, 'tenant');
       }
     };
   }
